@@ -41,4 +41,4 @@ yarn release   # bump the version, commit and tag package.json
 git push --follow-tags
 ```
 
-The release workflow runs the full test suite, builds the package, and publishes it to npm (requires the `NPM_TOKEN` secret).
+The release workflow runs the full test suite, builds the package, and publishes it to npm via Trusted Publishing (OIDC) — configure the trusted publisher for this repository on npmjs.com first.

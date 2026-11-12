@@ -22,7 +22,6 @@ jobs:
           node-version: 24
           cache: yarn
           cache-dependency-path: yarn.lock
-          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile --registry https://registry.npmjs.org
@@ -42,7 +41,11 @@ jobs:
       - name: Build
         run: yarn build
 
-      - name: Publish to npm
-        run: npm publish --access public --provenance --registry https://registry.npmjs.org
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to npm (trusted publishing / OIDC)
+        run: |
+          IS_PRERELEASE=$(node -p "require('semver').prerelease(require('./package.json').version) !== null")
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            npm publish --access public --provenance --tag beta --registry https://registry.npmjs.org
+          else
+            npm publish --access public --provenance --registry https://registry.npmjs.org
+          fi
