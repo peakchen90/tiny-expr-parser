@@ -6,10 +6,13 @@ describe('Binary Operator', () => {
     const parser = new Parser();
     parser.addBinaryOperator('%', 14);
     expect(parser.parse('2 % 3')).toMatchObject({
-      expression: { type: 'BinaryExpression', operator: '%' },
+      expression: { type: 'BinaryExpression', operator: { value: '%' } },
     });
     expect(parser.parse('2 % 3 + 5')).toMatchObject({
-      expression: { operator: '+', left: { operator: '%' } },
+      expression: {
+        operator: { value: '+' },
+        left: { operator: { value: '%' } },
+      },
     });
   });
 
@@ -18,10 +21,37 @@ describe('Binary Operator', () => {
     parser.addBinaryOperator('**', 15);
     parser.addBinaryOperator('*', 14);
     expect(parser.parse('2 ** 3')).toMatchObject({
-      expression: { type: 'BinaryExpression', operator: '**' },
+      expression: {
+        type: 'BinaryExpression',
+        operator: { type: 'ExpressionOperator', value: '**', start: 2, end: 4 },
+      },
     });
     expect(parser.parse('2 ** 3 - 1')).toMatchObject({
-      expression: { operator: '-', left: { operator: '**' } },
+      expression: {
+        operator: { value: '-' },
+        left: { operator: { value: '**' } },
+      },
+    });
+  });
+
+  test('reports UTF-16 offsets for operators in Unicode expressions', () => {
+    const parser = new Parser();
+    parser.addBinaryOperator('🧮', 13);
+
+    expect(parser.parse('𠀀 🧮 -2')).toMatchObject({
+      expression: {
+        type: 'BinaryExpression',
+        operator: { type: 'ExpressionOperator', value: '🧮', start: 3, end: 5 },
+        right: {
+          type: 'UnaryExpression',
+          operator: {
+            type: 'ExpressionOperator',
+            value: '-',
+            start: 6,
+            end: 7,
+          },
+        },
+      },
     });
   });
 
@@ -31,12 +61,12 @@ describe('Binary Operator', () => {
 
     expect(parser.parse('2 ** -3 * 4')).toMatchObject({
       expression: {
-        operator: '*',
+        operator: { value: '*' },
         left: {
-          operator: '**',
+          operator: { value: '**' },
           right: {
             type: 'UnaryExpression',
-            operator: '-',
+            operator: { value: '-' },
             argument: { type: 'NumericLiteral', value: '3' },
           },
         },
@@ -48,7 +78,7 @@ describe('Binary Operator', () => {
     const parser = new Parser();
     parser.addBinaryOperator('add', 13);
     expect(parser.parse('2 add 3')).toMatchObject({
-      expression: { type: 'BinaryExpression', operator: 'add' },
+      expression: { type: 'BinaryExpression', operator: { value: 'add' } },
     });
   });
 
@@ -59,18 +89,24 @@ describe('Binary Operator', () => {
 
     expect(parser.parse('1 + +2 - 3')).toMatchObject({
       expression: {
-        operator: '+',
+        operator: { value: '+' },
         right: {
-          operator: '-',
-          left: { type: 'UnaryExpression', operator: '+' },
+          operator: { value: '-' },
+          left: { type: 'UnaryExpression', operator: { value: '+' } },
         },
       },
     });
     expect(parser.parse('2 + 2 - 1')).toMatchObject({
-      expression: { operator: '+', right: { operator: '-' } },
+      expression: {
+        operator: { value: '+' },
+        right: { operator: { value: '-' } },
+      },
     });
     expect(new Parser().parse('1 + 2 - 3')).toMatchObject({
-      expression: { operator: '-', left: { operator: '+' } },
+      expression: {
+        operator: { value: '-' },
+        left: { operator: { value: '+' } },
+      },
     });
   });
 
@@ -78,12 +114,18 @@ describe('Binary Operator', () => {
     const parser = new Parser();
     parser.addBinaryOperator('%', 10);
     expect(parser.parse('1+2%3')).toMatchObject({
-      expression: { operator: '%', left: { operator: '+' } },
+      expression: {
+        operator: { value: '%' },
+        left: { operator: { value: '+' } },
+      },
     });
 
     parser.addBinaryOperator('%', 15);
     expect(parser.parse('1+2%3')).toMatchObject({
-      expression: { operator: '+', right: { operator: '%' } },
+      expression: {
+        operator: { value: '+' },
+        right: { operator: { value: '%' } },
+      },
     });
   });
 
@@ -95,15 +137,15 @@ describe('Binary Operator', () => {
     expect(parser.parse('~1~~2')).toMatchObject({
       expression: {
         type: 'BinaryExpression',
-        operator: '~',
+        operator: { value: '~' },
         left: {
           type: 'UnaryExpression',
-          operator: '~',
+          operator: { value: '~' },
           argument: { value: '1' },
         },
         right: {
           type: 'UnaryExpression',
-          operator: '~',
+          operator: { value: '~' },
           argument: { value: '2' },
         },
       },
@@ -126,7 +168,7 @@ describe('Binary Operator', () => {
       /The precedence should be a number/,
     );
     expect(parser.parse('1+2')).toMatchObject({
-      expression: { operator: '+' },
+      expression: { operator: { value: '+' } },
     });
   });
 
@@ -160,19 +202,27 @@ describe('Unary Operator', () => {
     expect(parser.parse('double1.5')).toMatchObject({
       expression: {
         type: 'UnaryExpression',
-        operator: 'double',
+        operator: {
+          type: 'ExpressionOperator',
+          value: 'double',
+          start: 0,
+          end: 6,
+        },
         argument: { value: '1.5' },
       },
     });
     expect(parser.parse('double(2)')).toMatchObject({
       expression: {
         type: 'UnaryExpression',
-        operator: 'double',
+        operator: { value: 'double' },
         argument: { value: '2' },
       },
     });
     expect(parser.parse('double .035 * 100')).toMatchObject({
-      expression: { operator: '*', left: { operator: 'double' } },
+      expression: {
+        operator: { value: '*' },
+        left: { operator: { value: 'double' } },
+      },
     });
   });
 
@@ -181,8 +231,11 @@ describe('Unary Operator', () => {
     parser.addUnaryOperator('double', 0);
     expect(parser.parse('double 1 + 4 - 2')).toMatchObject({
       expression: {
-        operator: 'double',
-        argument: { operator: '-', left: { operator: '+' } },
+        operator: { value: 'double' },
+        argument: {
+          operator: { value: '-' },
+          left: { operator: { value: '+' } },
+        },
       },
     });
   });
@@ -193,8 +246,11 @@ describe('Unary Operator', () => {
     parser.addUnaryOperator('abs', 0);
     expect(parser.parse('abs double 2 - 10')).toMatchObject({
       expression: {
-        operator: 'abs',
-        argument: { operator: 'double', argument: { operator: '-' } },
+        operator: { value: 'abs' },
+        argument: {
+          operator: { value: 'double' },
+          argument: { operator: { value: '-' } },
+        },
       },
     });
   });

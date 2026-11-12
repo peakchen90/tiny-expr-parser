@@ -25,7 +25,7 @@ describe('Parser Special Case', () => {
           type: 'NumericLiteral',
           value: '1',
         },
-        operator: '+',
+        operator: { value: '+' },
         right: {
           type: 'NumericLiteral',
           value: '2',
@@ -39,7 +39,7 @@ describe('Parser Special Case', () => {
     expect(parser.parse('\u3000')).toBeNull();
     expect(parser.parse('1\u3000+\u30002')).toMatchObject({
       expression: {
-        operator: '+',
+        operator: { value: '+' },
         left: { value: '1' },
         right: { value: '2' },
       },
@@ -54,10 +54,10 @@ describe('Parser Special Case', () => {
     expect(parser.parse('-(2%3)')).toMatchObject({
       expression: {
         type: 'UnaryExpression',
-        operator: '-',
+        operator: { value: '-' },
         argument: {
           type: 'BinaryExpression',
-          operator: '%',
+          operator: { value: '%' },
           left: { value: '2' },
           right: { value: '3' },
         },
@@ -168,12 +168,12 @@ describe('Call Expression', () => {
   test('binds calls before unary and binary operators and parses nested arguments', () => {
     expect(new Parser().parse('1 + -f(g(), -2 * 3) * 4')).toMatchObject({
       expression: {
-        operator: '+',
+        operator: { value: '+' },
         right: {
-          operator: '*',
+          operator: { value: '*' },
           left: {
             type: 'UnaryExpression',
-            operator: '-',
+            operator: { value: '-' },
             argument: {
               type: 'CallExpression',
               callee: { name: 'f' },
@@ -184,10 +184,10 @@ describe('Call Expression', () => {
                   arguments: [],
                 },
                 {
-                  operator: '*',
+                  operator: { value: '*' },
                   left: {
                     type: 'UnaryExpression',
-                    operator: '-',
+                    operator: { value: '-' },
                     argument: { value: '2' },
                   },
                   right: { value: '3' },

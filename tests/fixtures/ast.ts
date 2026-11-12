@@ -95,7 +95,7 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '+',
+      operator: { type: 'ExpressionOperator', value: '+', start: 1, end: 2 },
       right: {
         type: 'NumericLiteral',
         start: 2,
@@ -120,7 +120,7 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '-',
+      operator: { type: 'ExpressionOperator', value: '-', start: 1, end: 2 },
       right: {
         type: 'NumericLiteral',
         start: 2,
@@ -145,7 +145,7 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '*',
+      operator: { type: 'ExpressionOperator', value: '*', start: 1, end: 2 },
       right: {
         type: 'NumericLiteral',
         start: 2,
@@ -170,7 +170,7 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '/',
+      operator: { type: 'ExpressionOperator', value: '/', start: 1, end: 2 },
       right: {
         type: 'NumericLiteral',
         start: 2,
@@ -195,12 +195,12 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '-',
+      operator: { type: 'ExpressionOperator', value: '-', start: 1, end: 2 },
       right: {
         type: 'UnaryExpression',
         start: 2,
         end: 4,
-        operator: '+',
+        operator: { type: 'ExpressionOperator', value: '+', start: 2, end: 3 },
         prefix: true,
         argument: {
           type: 'NumericLiteral',
@@ -227,12 +227,12 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '+',
+      operator: { type: 'ExpressionOperator', value: '+', start: 1, end: 2 },
       right: {
         type: 'UnaryExpression',
         start: 2,
         end: 4,
-        operator: '-',
+        operator: { type: 'ExpressionOperator', value: '-', start: 2, end: 3 },
         prefix: true,
         argument: {
           type: 'NumericLiteral',
@@ -259,12 +259,12 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '+',
+      operator: { type: 'ExpressionOperator', value: '+', start: 1, end: 2 },
       right: {
         type: 'UnaryExpression',
         start: 2,
         end: 4,
-        operator: '+',
+        operator: { type: 'ExpressionOperator', value: '+', start: 2, end: 3 },
         prefix: true,
         argument: {
           type: 'NumericLiteral',
@@ -291,12 +291,12 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '-',
+      operator: { type: 'ExpressionOperator', value: '-', start: 1, end: 2 },
       right: {
         type: 'UnaryExpression',
         start: 2,
         end: 4,
-        operator: '-',
+        operator: { type: 'ExpressionOperator', value: '-', start: 2, end: 3 },
         prefix: true,
         argument: {
           type: 'NumericLiteral',
@@ -323,18 +323,23 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '-',
+      operator: { type: 'ExpressionOperator', value: '-', start: 2, end: 3 },
       right: {
         type: 'UnaryExpression',
         start: 4,
         end: 21,
-        operator: '+',
+        operator: { type: 'ExpressionOperator', value: '+', start: 4, end: 5 },
         prefix: true,
         argument: {
           type: 'UnaryExpression',
           start: 6,
           end: 21,
-          operator: '-',
+          operator: {
+            type: 'ExpressionOperator',
+            value: '-',
+            start: 6,
+            end: 7,
+          },
           prefix: true,
           argument: {
             type: 'BinaryExpression',
@@ -344,7 +349,12 @@ export const astFixtures: ParserFixtures = {
               type: 'UnaryExpression',
               start: 10,
               end: 13,
-              operator: '+',
+              operator: {
+                type: 'ExpressionOperator',
+                value: '+',
+                start: 10,
+                end: 11,
+              },
               prefix: true,
               argument: {
                 type: 'NumericLiteral',
@@ -354,12 +364,22 @@ export const astFixtures: ParserFixtures = {
                 rawValue: '2',
               },
             },
-            operator: '-',
+            operator: {
+              type: 'ExpressionOperator',
+              value: '-',
+              start: 14,
+              end: 15,
+            },
             right: {
               type: 'UnaryExpression',
               start: 16,
               end: 19,
-              operator: '-',
+              operator: {
+                type: 'ExpressionOperator',
+                value: '-',
+                start: 16,
+                end: 17,
+              },
               prefix: true,
               argument: {
                 type: 'NumericLiteral',
@@ -393,7 +413,7 @@ export const astFixtures: ParserFixtures = {
           value: '1',
           rawValue: '1',
         },
-        operator: '+',
+        operator: { type: 'ExpressionOperator', value: '+', start: 3, end: 4 },
         right: {
           type: 'NumericLiteral',
           start: 5,
@@ -402,7 +422,7 @@ export const astFixtures: ParserFixtures = {
           rawValue: '2',
         },
       },
-      operator: '-',
+      operator: { type: 'ExpressionOperator', value: '-', start: 7, end: 8 },
       right: {
         type: 'BinaryExpression',
         start: 9,
@@ -418,7 +438,12 @@ export const astFixtures: ParserFixtures = {
             value: '3',
             rawValue: '3',
           },
-          operator: '*',
+          operator: {
+            type: 'ExpressionOperator',
+            value: '*',
+            start: 11,
+            end: 12,
+          },
           right: {
             type: 'NumericLiteral',
             start: 13,
@@ -427,7 +452,12 @@ export const astFixtures: ParserFixtures = {
             rawValue: '4',
           },
         },
-        operator: '/',
+        operator: {
+          type: 'ExpressionOperator',
+          value: '/',
+          start: 15,
+          end: 16,
+        },
         right: {
           type: 'NumericLiteral',
           start: 17,
@@ -453,7 +483,7 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '+',
+      operator: { type: 'ExpressionOperator', value: '+', start: 5, end: 6 },
       right: {
         type: 'NumericLiteral',
         start: 7,
@@ -482,7 +512,7 @@ export const astFixtures: ParserFixtures = {
           value: '1',
           rawValue: '1',
         },
-        operator: '+',
+        operator: { type: 'ExpressionOperator', value: '+', start: 2, end: 3 },
         right: {
           type: 'NumericLiteral',
           start: 4,
@@ -491,7 +521,7 @@ export const astFixtures: ParserFixtures = {
           rawValue: '2',
         },
       },
-      operator: '-',
+      operator: { type: 'ExpressionOperator', value: '-', start: 6, end: 7 },
       right: {
         type: 'NumericLiteral',
         start: 8,
@@ -516,7 +546,7 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '+',
+      operator: { type: 'ExpressionOperator', value: '+', start: 2, end: 3 },
       right: {
         type: 'BinaryExpression',
         start: 4,
@@ -528,7 +558,7 @@ export const astFixtures: ParserFixtures = {
           value: '2',
           rawValue: '2',
         },
-        operator: '*',
+        operator: { type: 'ExpressionOperator', value: '*', start: 6, end: 7 },
         right: {
           type: 'NumericLiteral',
           start: 8,
@@ -558,7 +588,7 @@ export const astFixtures: ParserFixtures = {
           value: '1',
           rawValue: '1',
         },
-        operator: '/',
+        operator: { type: 'ExpressionOperator', value: '/', start: 2, end: 3 },
         right: {
           type: 'NumericLiteral',
           start: 4,
@@ -567,7 +597,7 @@ export const astFixtures: ParserFixtures = {
           rawValue: '2',
         },
       },
-      operator: '-',
+      operator: { type: 'ExpressionOperator', value: '-', start: 6, end: 7 },
       right: {
         type: 'NumericLiteral',
         start: 8,
@@ -592,7 +622,7 @@ export const astFixtures: ParserFixtures = {
         value: '1',
         rawValue: '1',
       },
-      operator: '*',
+      operator: { type: 'ExpressionOperator', value: '*', start: 2, end: 3 },
       right: {
         type: 'BinaryExpression',
         start: 5,
@@ -604,7 +634,7 @@ export const astFixtures: ParserFixtures = {
           value: '2',
           rawValue: '2',
         },
-        operator: '-',
+        operator: { type: 'ExpressionOperator', value: '-', start: 7, end: 8 },
         right: {
           type: 'NumericLiteral',
           start: 9,
@@ -634,7 +664,7 @@ export const astFixtures: ParserFixtures = {
           value: '1',
           rawValue: '1',
         },
-        operator: '+',
+        operator: { type: 'ExpressionOperator', value: '+', start: 3, end: 4 },
         right: {
           type: 'NumericLiteral',
           start: 5,
@@ -643,7 +673,7 @@ export const astFixtures: ParserFixtures = {
           rawValue: '2',
         },
       },
-      operator: '*',
+      operator: { type: 'ExpressionOperator', value: '*', start: 8, end: 9 },
       right: {
         type: 'NumericLiteral',
         start: 10,
@@ -676,7 +706,12 @@ export const astFixtures: ParserFixtures = {
             value: '1',
             rawValue: '1',
           },
-          operator: '+',
+          operator: {
+            type: 'ExpressionOperator',
+            value: '+',
+            start: 5,
+            end: 6,
+          },
           right: {
             type: 'NumericLiteral',
             start: 7,
@@ -685,7 +720,12 @@ export const astFixtures: ParserFixtures = {
             rawValue: '2',
           },
         },
-        operator: '/',
+        operator: {
+          type: 'ExpressionOperator',
+          value: '/',
+          start: 10,
+          end: 11,
+        },
         right: {
           type: 'NumericLiteral',
           start: 12,
@@ -694,7 +734,7 @@ export const astFixtures: ParserFixtures = {
           rawValue: '3',
         },
       },
-      operator: '*',
+      operator: { type: 'ExpressionOperator', value: '*', start: 15, end: 16 },
       right: {
         type: 'BinaryExpression',
         start: 18,
@@ -706,7 +746,12 @@ export const astFixtures: ParserFixtures = {
           value: '4',
           rawValue: '4',
         },
-        operator: '-',
+        operator: {
+          type: 'ExpressionOperator',
+          value: '-',
+          start: 20,
+          end: 21,
+        },
         right: {
           type: 'BinaryExpression',
           start: 22,
@@ -718,7 +763,12 @@ export const astFixtures: ParserFixtures = {
             value: '5',
             rawValue: '5',
           },
-          operator: '*',
+          operator: {
+            type: 'ExpressionOperator',
+            value: '*',
+            start: 24,
+            end: 25,
+          },
           right: {
             type: 'NumericLiteral',
             start: 27,
@@ -744,7 +794,7 @@ export const astFixtures: ParserFixtures = {
         end: 1,
         name: 'a',
       },
-      operator: '+',
+      operator: { type: 'ExpressionOperator', value: '+', start: 2, end: 3 },
       right: {
         type: 'Identifier',
         start: 4,
@@ -768,7 +818,7 @@ export const astFixtures: ParserFixtures = {
         value: '1.2',
         rawValue: '1.2',
       },
-      operator: '+',
+      operator: { type: 'ExpressionOperator', value: '+', start: 3, end: 4 },
       right: {
         type: 'Identifier',
         start: 5,
@@ -792,7 +842,7 @@ export const astFixtures: ParserFixtures = {
         value: '12.34',
         rawValue: '1_2.3_4',
       },
-      operator: '+',
+      operator: { type: 'ExpressionOperator', value: '+', start: 7, end: 8 },
       right: {
         type: 'NumericLiteral',
         start: 8,
@@ -808,7 +858,7 @@ export const astFixtures: ParserFixtures = {
     end: 12,
     expression: {
       type: 'BinaryExpression',
-      operator: '+',
+      operator: { type: 'ExpressionOperator', value: '+', start: 8, end: 9 },
       start: 2,
       end: 12,
       left: { type: 'Identifier', name: 'a_1', start: 3, end: 6 },
@@ -827,7 +877,7 @@ export const astFixtures: ParserFixtures = {
     end: 9,
     expression: {
       type: 'BinaryExpression',
-      operator: '+',
+      operator: { type: 'ExpressionOperator', value: '+', start: 4, end: 5 },
       start: 0,
       end: 9,
       left: {

@@ -2,7 +2,7 @@ import type { Parser } from './parser';
 
 export interface ParserOptions {}
 
-export type Node = RootNode | ExpressionNode;
+export type Node = RootNode | ExpressionNode | ExpressionOperator;
 
 export type ExpressionNode =
   | BinaryExpression
@@ -21,14 +21,20 @@ export interface BinaryExpression extends NodeMeta {
   type: 'BinaryExpression';
   left: ExpressionNode;
   right: ExpressionNode;
-  operator: string;
+  operator: ExpressionOperator;
 }
 
 export interface UnaryExpression extends NodeMeta {
   type: 'UnaryExpression';
   argument: ExpressionNode;
-  operator: string;
+  operator: ExpressionOperator;
   prefix: boolean;
+}
+
+/** 表达式中的运算符及其源码位置 */
+export interface ExpressionOperator extends NodeMeta {
+  type: 'ExpressionOperator';
+  value: string;
 }
 
 export interface CallExpression extends NodeMeta {

@@ -50,11 +50,11 @@ const ast = parser.parse('1 + 2 * a');
   type: 'Expression',
   expression: {
     type: 'BinaryExpression',
-    operator: '+',
+    operator: { type: 'ExpressionOperator', value: '+', start: 2, end: 3 },
     left: { type: 'NumericLiteral', rawValue: '1', value: '1', start: 0, end: 1 },
     right: {
       type: 'BinaryExpression',
-      operator: '*',
+      operator: { type: 'ExpressionOperator', value: '*', start: 6, end: 7 },
       left: { type: 'NumericLiteral', rawValue: '2', value: '2', start: 4, end: 5 },
       right: { type: 'Identifier', name: 'a', start: 8, end: 9 },
     },
@@ -132,7 +132,7 @@ interface BinaryExpression {
   end: number;
   left: ExpressionNode;
   right: ExpressionNode;
-  operator: string; // 如 '+'、'-'、'*'、'/'
+  operator: ExpressionOperator;
 }
 
 interface UnaryExpression {
@@ -140,8 +140,15 @@ interface UnaryExpression {
   start: number;
   end: number;
   argument: ExpressionNode;
-  operator: string; // 如 '-'、'sin'
+  operator: ExpressionOperator;
   prefix: boolean; // 恒为 true
+}
+
+interface ExpressionOperator {
+  type: 'ExpressionOperator';
+  start: number;
+  end: number;
+  value: string;
 }
 
 interface NumericLiteral {

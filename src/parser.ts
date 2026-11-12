@@ -3,6 +3,7 @@ import type {
   RootNode,
   ExpressionNode,
   Node,
+  ExpressionOperator,
   UnaryExpression,
   CallExpression,
   InitialPartNode,
@@ -124,8 +125,7 @@ export class Parser {
     ) {
       const precedence = this.tokenType.precedence;
       const node = this.startNode<BinaryExpression>(leftStartPos);
-      const operator = this.tokenText;
-      this.next();
+      const operator = this.parseOperator();
 
       // 解析可能更高优先级的右侧表达式，如: `1 + 2 * 3` 将解析 `2 * 3` 作为右值
       const right = this.parseExprAtom(this.tokenStart, precedence);
@@ -150,13 +150,13 @@ export class Parser {
 
     // Note: `1 ++ 1` 会当作 `1 + (+1)` 对待，与 JS 会作为 `1++` 对待不同
     if (this.tokenType.isPrefix) {
-      this.next();
+      const operator = this.parseOperator();
       // 前缀运算符自身的优先级决定其操作数的范围
       const argument = this.parseExprAtom(this.tokenStart, precedence);
       return this.finishNode(node as InitialPartNode<UnaryExpression>, {
         type: 'UnaryExpression',
         argument,
-        operator: value,
+        operator,
         prefix: true,
       });
     }
@@ -208,6 +208,16 @@ export class Parser {
     }
 
     return this.unexpected(value, start);
+  }
+
+  /**
+   * 读取运算符节点，范围只覆盖当前运算符 token
+   */
+  private parseOperator(): ExpressionOperator {
+    const node = this.startNode<ExpressionOperator>();
+    const value = this.tokenText;
+    this.next();
+    return this.finishNode(node, { type: 'ExpressionOperator', value });
   }
 
   /**
