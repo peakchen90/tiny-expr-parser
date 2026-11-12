@@ -390,14 +390,13 @@ export class Parser {
   private readToken(): void {
     const code = this.codeAt(this.pos);
     if (isNumericStart(code)) {
-      return this.options.features.number
-        ? this.readNumeric()
-        : this.unexpected(this.input[this.pos]);
+      return this.readNumeric();
     }
     if (code === 34 || code === 39) {
-      return this.options.features.string
-        ? this.readString(code)
-        : this.unexpected(this.input[this.pos]);
+      if (!this.options.features.string) {
+        this.unexpected(this.input[this.pos]);
+      }
+      return this.readString(code);
     }
     return this.readTokenFromCode();
   }
@@ -406,6 +405,10 @@ export class Parser {
    * 读取一个数字
    */
   private readNumeric(): void {
+    if (!this.options.features.number) {
+      this.unexpected(this.input[this.tokenStart]);
+    }
+
     let countE = -1; // 统计字符 `e` 出现次数，-1 表示当前位置不允许出现 `e`
     let allowDot = true;
     let allowUnderline = false;
@@ -559,9 +562,7 @@ export class Parser {
       case 45: // `-`
         this.pos++;
         if (this.allowPrefix && isNumericStart(this.codeAt(this.pos))) {
-          return this.options.features.number
-            ? this.readNumeric()
-            : this.unexpected('-');
+          return this.readNumeric();
         }
         return this.finishToken(tt.minus, '-');
       case 47: // `/`
