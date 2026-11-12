@@ -1,7 +1,7 @@
 {
   "name": "tiny-expr-parser",
   "description": "A tiny, zero-dependency expression parser library.",
-  "version": "0.0.1-beta.3",
+  "version": "0.0.1",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
