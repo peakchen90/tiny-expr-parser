@@ -25,6 +25,21 @@ describe('Binary Operator', () => {
     });
   });
 
+  test('accepts a prefix operand after a higher-precedence binary operator', () => {
+    const parser = new Parser();
+    parser.addBinaryOperator('**', 17);
+
+    expect(parser.parse('2 ** -3 * 4')).toMatchObject({
+      expression: {
+        operator: '*',
+        left: {
+          operator: '**',
+          right: { type: 'UnaryExpression', operator: '-', argument: { type: 'NumericLiteral', value: '3' } },
+        },
+      },
+    });
+  });
+
   test('custom binary operator: use a identifier', () => {
     const parser = new Parser();
     parser.addBinaryOperator('add', 13);
@@ -49,11 +64,17 @@ describe('Binary Operator', () => {
     });
   });
 
-  test('cannot use reserved character as operator', () => {
+  test.each(['(', ')', ')+', '+('])('cannot use reserved parentheses in operator `%s`', (operator) => {
     const parser = new Parser();
     expect(() => {
-      parser.addBinaryOperator('(', 13);
+      parser.addBinaryOperator(operator, 13);
     }).toThrow(/The custom operator cannot use reserved character/);
+  });
+
+  test('rejects NaN precedence when registering an operator', () => {
+    const parser = new Parser();
+    expect(() => parser.addBinaryOperator('+', NaN)).toThrow(/The precedence should be a number/);
+    expect(parser.parse('1+2')).toMatchObject({ expression: { operator: '+' } });
   });
 
   test('invalid operator', () => {
@@ -75,7 +96,7 @@ describe('Binary Operator', () => {
     }).toThrow(/The custom operator cannot start with `?`/);
     expect(() => {
       parser.addBinaryOperator('%', -1);
-    }).toThrow(/The precedence should be a number greater than 0/);
+    }).toThrow(/The precedence should be a number greater than or equal to 0/);
   });
 });
 

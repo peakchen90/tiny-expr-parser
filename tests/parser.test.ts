@@ -33,9 +33,28 @@ describe('Parser Special Case', () => {
       },
     });
   });
+
+  test('skips full-width spaces', () => {
+    const parser = new Parser();
+    expect(parser.parse('\u3000')).toBeNull();
+    expect(parser.parse('1\u3000+\u30002')).toMatchObject({
+      expression: { operator: '+', left: { value: '1' }, right: { value: '2' } },
+    });
+  });
+
+  test('parses a long chain of same-precedence binary operators', () => {
+    const input = `1${'+1'.repeat(20_000)}`;
+    const ast = new Parser().parse(input);
+    expect(ast?.expression.type).toBe('BinaryExpression');
+    expect(ast?.expression.end).toBe(input.length);
+  });
 });
 
 describe('Parser Error Capture', () => {
+  test('rejects a numeric separator immediately after the decimal point', () => {
+    expect(() => new Parser().parse('1._2')).toThrow('Unexpected token _ at position 2');
+  });
+
   test('unexpected token in the end', () => {
     expect(() => {
       new Parser().parse('1+');

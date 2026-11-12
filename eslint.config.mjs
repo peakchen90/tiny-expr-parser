@@ -28,4 +28,21 @@ export default defineConfig(
       '@typescript-eslint/no-unused-vars': 'error',
     },
   },
+  {
+    files: ['scripts/**/*.{js,cjs}'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        fetch: 'readonly',
+        process: 'readonly',
+        require: 'readonly',
+        module: 'readonly',
+        exports: 'readonly',
+        __dirname: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
 );

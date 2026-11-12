@@ -37,7 +37,7 @@ Before opening a PR, make sure `yarn lint`, `yarn format:check`, `yarn typecheck
 Releases are published automatically by GitHub Actions when a `v*` tag is pushed:
 
 ```bash
-npm version patch   # or minor / major
+yarn release   # bump the version, commit and tag package.json
 git push --follow-tags
 ```
 

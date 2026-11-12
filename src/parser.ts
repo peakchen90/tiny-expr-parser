@@ -2,6 +2,8 @@ import type { BinaryExpression, RootNode, ExpressionNode, Node, UnaryExpression,
 import { TokenType, tokenTypes as tt } from './token-type';
 import { isNumericStart, isNumericChar, isIdentifierChar, isIdentifierStart, getRealNumeric } from './util';
 
+const WHITESPACE_PATTERN = /\s/;
+
 /**
  * Expression Parser
  */
@@ -73,7 +75,7 @@ export class Parser {
       this.expect(tt.parenR);
       return this.parseMaybeBinary(left, leftStartPos, minPrecedence); // 将 `(expr)` 整体作为左值，进入优先级解析流程
     } else {
-      const left = this.parseMaybeUnary(minPrecedence);
+      const left = this.parseMaybeUnary();
       return this.parseMaybeBinary(left, leftStartPos, minPrecedence); // 读取一个数字作为左值，进入优先级解析流程
     }
   }
@@ -85,31 +87,24 @@ export class Parser {
    * @param minPrecedence 当前上下文的优先级
    */
   private parseMaybeBinary(left: ExpressionNode, leftStartPos: number, minPrecedence: number): ExpressionNode {
-    const precedence = this.tokenType.precedence;
-    if (this.tokenType.isBinary && precedence > minPrecedence) {
-      // 比较当前运算符与上下文优先级
+    // 逐个续接左结合的二元运算符，避免同级运算链增加递归深度
+    while (this.tokenType.isBinary && this.tokenType.precedence > minPrecedence) {
+      const precedence = this.tokenType.precedence;
       const node = this.startNode<BinaryExpression>(leftStartPos);
       const operator = this.tokenText;
       this.next();
 
       // 解析可能更高优先级的右侧表达式，如: `1 + 2 * 3` 将解析 `2 * 3` 作为右值
-      const start = this.tokenStart;
-      const maybeHighPrecedenceExpr = this.parseExprAtom(start, precedence);
-      const right = this.parseMaybeBinary(maybeHighPrecedenceExpr, start, precedence);
-      const leftNode = this.finishNode(node, { type: 'BinaryExpression', left, right, operator });
-
-      // 将已经解析的二元表达式作为左值，然后递归解析后面可能的同等优先级或低优先级的表达式作为右值
-      // 如: `1 + 2 + 3`, 当前已经解析 `1 + 2`, 然后将该节点作为左值递归解析表达式优先级
-      return this.parseMaybeBinary(leftNode, leftStartPos, minPrecedence);
+      const right = this.parseExprAtom(this.tokenStart, precedence);
+      left = this.finishNode(node, { type: 'BinaryExpression', left, right, operator });
     }
     return left;
   }
 
   /**
    * 解析可能带前缀的表达式，如: `+1`, `-(2)`, `3`, `-(3 + 4)`, `+-+5`
-   * @param minPrecedence 当前上下文的优先级
    */
-  private parseMaybeUnary(minPrecedence: number): ExpressionNode {
+  private parseMaybeUnary(): ExpressionNode {
     const precedence = this.tokenType.precedence;
     const node = this.startNode<ExpressionNode>();
     const start = this.tokenStart;
@@ -117,19 +112,15 @@ export class Parser {
 
     // Note: `1 ++ 1` 会当作 `1 + (+1)` 对待，与 JS 会作为 `1++` 对待不同
     if (this.tokenType.isPrefix) {
-      if (precedence >= minPrecedence) {
-        // 相同优先级的一元运算符可以连续
-        const operator = value;
-        const prefix = true;
-        this.next();
-        const argument = this.parseExprAtom(this.tokenStart, precedence);
-        return this.finishNode(node as InitialPartNode<UnaryExpression>, {
-          type: 'UnaryExpression',
-          argument,
-          operator,
-          prefix,
-        });
-      }
+      this.next();
+      // 前缀运算符自身的优先级决定其操作数的范围
+      const argument = this.parseExprAtom(this.tokenStart, precedence);
+      return this.finishNode(node as InitialPartNode<UnaryExpression>, {
+        type: 'UnaryExpression',
+        argument,
+        operator: value,
+        prefix: true,
+      });
     }
 
     if (this.tokenType === tt.numeric) {
@@ -234,6 +225,7 @@ export class Parser {
         }
 
         allowDot = false;
+        allowUnderline = false;
         this.pos++;
         if (this.pos - chunkStart === 1) {
           expectANumber = true;
@@ -382,24 +374,8 @@ export class Parser {
    * 跳过空白字符
    */
   private skipSpace(): void {
-    while (this.isValidPosition()) {
-      const code = this.codeAt(this.pos);
-      if (code === 32 || code === 160) {
-        // ` `
-        this.pos++;
-      } else if (code === 13 || code === 10 || code === 8232 || code === 8233) {
-        // new line
-        if (code === 13 && this.codeAt(this.pos + 1) === 10) {
-          // CRLF
-          this.pos++;
-        }
-        this.pos++;
-      } else if (code > 8 && code < 14) {
-        // 制表符等
-        this.pos++;
-      } else {
-        break;
-      }
+    while (this.isValidPosition() && WHITESPACE_PATTERN.test(this.input[this.pos])) {
+      this.pos++;
     }
   }
 
@@ -452,7 +428,7 @@ export class Parser {
     if (typeof value !== 'string' || !/^\S+$/.test(value)) {
       throw new Error('The custom operator should be a non-empty string');
     }
-    if (value === '(' || value === ')') {
+    if (/[()]/.test(value)) {
       throw new Error('The custom operator cannot use reserved character, including: (, )');
     }
     if (isNumericStart(value.charCodeAt(0))) {
@@ -462,8 +438,8 @@ export class Parser {
       // `?`
       throw new Error('The custom operator cannot start with `?`');
     }
-    if (precedence != null && (typeof precedence !== 'number' || precedence < 0)) {
-      throw new Error('The precedence should be a number greater than 0');
+    if (typeof precedence !== 'number' || Number.isNaN(precedence) || precedence < 0) {
+      throw new Error('The precedence should be a number greater than or equal to 0');
     }
 
     // 最近注册的定义优先匹配
