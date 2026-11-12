@@ -119,7 +119,13 @@ interface RootNode {
   expression: ExpressionNode;
 }
 
-type ExpressionNode = BinaryExpression | UnaryExpression | NumericLiteral | Identifier;
+type ExpressionNode =
+  | BinaryExpression
+  | UnaryExpression
+  | CallExpression
+  | NumericLiteral
+  | StringLiteral
+  | Identifier;
 
 interface BinaryExpression {
   type: 'BinaryExpression';
@@ -145,6 +151,22 @@ interface NumericLiteral {
   end: number;
   rawValue: string; // the literal as it appears in the source
   value: string; // `rawValue` without `_` separators
+}
+
+interface StringLiteral {
+  type: 'StringLiteral';
+  start: number;
+  end: number;
+  rawValue: string; // original text including quotes
+  value: string; // decoded content
+}
+
+interface CallExpression {
+  type: 'CallExpression';
+  start: number;
+  end: number;
+  callee: Identifier;
+  arguments: ExpressionNode[];
 }
 
 interface Identifier {
@@ -174,10 +196,20 @@ Precedence follows the [MDN operator precedence table](https://developer.mozilla
 
 The parser accepts `123`, `.5`, `1.5`, `1_000`, `1e3`, `1.2e-3`. The `_` separator is stripped in `NumericLiteral.value` but preserved in `rawValue`.
 
+### Strings and calls
+
+Strings use single or double quotes and support `\\`, `\'`, `\"`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`, and `\v` escapes.
+
+Calls use an identifier as the function name, as in `fn()` and `fn('text', other(1 + 2))`. Separate arguments with commas and omit the trailing comma. Calls bind before unary and binary operators.
+
+### Identifier syntax
+
+Identifiers use the ECMAScript `IdentifierName` character rules. Names can contain Unicode letters, as in `求和(金额)`, and can start with `$` or `_`. They also accept `\uXXXX` and `\u{...}` escapes. The AST stores the decoded name and UTF-16 offsets into the original input. Unicode classification uses the runtime's support for Unicode property escapes.
+
 ### Custom operator rules
 
 - must be a non-empty string without whitespace, and must not start with `.`, a digit, or `?`
-- `(` and `)` are reserved
+- `(`, `)`, `,`, `'`, and `"` are reserved
 - longer operators are matched first, and the most recently registered one wins on the same label
 
 ## Contributing

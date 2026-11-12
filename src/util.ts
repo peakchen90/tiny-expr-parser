@@ -1,3 +1,22 @@
+const IDENTIFIER_START_PATTERN = /^\p{ID_Start}$/u;
+const IDENTIFIER_CONTINUE_PATTERN = /^[\p{ID_Continue}\u200C\u200D]$/u;
+
+export const WHITESPACE_PATTERN = /\s/;
+export const IDENTIFIER_ESCAPE_PATTERN =
+  /\\u(?:([0-9a-fA-F]{4})|\{([0-9a-fA-F]+)\})/y;
+export const STRING_ESCAPES: Record<string, string | undefined> = {
+  '"': '"',
+  "'": "'",
+  '\\': '\\',
+  '/': '/',
+  b: '\b',
+  f: '\f',
+  n: '\n',
+  r: '\r',
+  t: '\t',
+  v: '\v',
+};
+
 /**
  * 判断数字可能的字符
  * @param code
@@ -16,24 +35,25 @@ export function isNumericStart(code: number): boolean {
 }
 
 /**
- * 判断标识符开始字符
- * @param code
+ * 判断 Unicode 码点是否可以作为标识符首字符
  */
 export function isIdentifierStart(code: number): boolean {
   if (code >= 65 && code <= 90) return true; // A-Z
   if (code >= 97 && code <= 122) return true; // a-z
-  return false;
+  if (code === 36 || code === 95) return true; // $ _
+  return (
+    code > 127 && IDENTIFIER_START_PATTERN.test(String.fromCodePoint(code))
+  );
 }
 
 /**
- * 判断是标识符开始字符
- * @param code
+ * 判断 Unicode 码点是否可以作为标识符后续字符
  */
 export function isIdentifierChar(code: number): boolean {
-  if (isIdentifierStart(code)) return true;
-  if (isNumericChar(code)) return true; // 0-9
-  if (code === 95) return true; // `_`
-  return false;
+  if (code > 127) {
+    return IDENTIFIER_CONTINUE_PATTERN.test(String.fromCodePoint(code));
+  }
+  return isIdentifierStart(code) || isNumericChar(code);
 }
 
 /**

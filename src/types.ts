@@ -1,6 +1,12 @@
 export type Node = RootNode | ExpressionNode;
 
-export type ExpressionNode = BinaryExpression | UnaryExpression | NumericLiteral | Identifier;
+export type ExpressionNode =
+  | BinaryExpression
+  | UnaryExpression
+  | CallExpression
+  | NumericLiteral
+  | StringLiteral
+  | Identifier;
 
 export interface RootNode extends NodeMeta {
   type: 'Expression';
@@ -21,8 +27,20 @@ export interface UnaryExpression extends NodeMeta {
   prefix: boolean;
 }
 
+export interface CallExpression extends NodeMeta {
+  type: 'CallExpression';
+  callee: Identifier;
+  arguments: ExpressionNode[];
+}
+
 export interface NumericLiteral extends NodeMeta {
   type: 'NumericLiteral';
+  rawValue: string;
+  value: string;
+}
+
+export interface StringLiteral extends NodeMeta {
+  type: 'StringLiteral';
   rawValue: string;
   value: string;
 }

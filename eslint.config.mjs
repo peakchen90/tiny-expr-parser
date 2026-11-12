@@ -5,7 +5,13 @@ import tseslint from 'typescript-eslint';
 
 export default defineConfig(
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**', 'benchmark/**', '**/*.d.ts'],
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/coverage/**',
+      'benchmark/**',
+      '**/*.d.ts',
+    ],
   },
   {
     files: ['*.mjs'],

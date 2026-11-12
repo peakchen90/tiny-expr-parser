@@ -1,6 +1,9 @@
 import type { Parser } from './parser';
 
-export type TokenTypeUpdateContext = (parser: Parser, prevType: TokenType) => { allowPrefix?: boolean };
+export type TokenTypeUpdateContext = (
+  parser: Parser,
+  prevType: TokenType,
+) => { allowPrefix?: boolean };
 
 export interface TokenType {
   /**
@@ -31,8 +34,16 @@ export const tokenTypes = {
   end: _tokenType('end'),
   parenL: _tokenType('(', { updateContext: () => ({ allowPrefix: true }) }),
   parenR: _tokenType(')', { updateContext: () => ({ allowPrefix: false }) }),
-  numeric: _tokenType('numeric', { updateContext: () => ({ allowPrefix: false }) }),
-  identifier: _tokenType('identifier', { updateContext: () => ({ allowPrefix: false }) }),
+  comma: _tokenType(',', { updateContext: () => ({ allowPrefix: true }) }),
+  numeric: _tokenType('numeric', {
+    updateContext: () => ({ allowPrefix: false }),
+  }),
+  string: _tokenType('string', {
+    updateContext: () => ({ allowPrefix: false }),
+  }),
+  identifier: _tokenType('identifier', {
+    updateContext: () => ({ allowPrefix: false }),
+  }),
   plus: _tokenType('+', { isBinary: true, precedence: 13 }),
   minus: _tokenType('-', { isBinary: true, precedence: 13 }),
   times: _tokenType('*', { isBinary: true, precedence: 14 }),

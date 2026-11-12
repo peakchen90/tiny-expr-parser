@@ -36,16 +36,25 @@ async function main() {
 
   console.log(`Package: ${pkg.name}`);
   console.log(`Local version:    ${local}`);
-  console.log(published ? `Published version: ${published}` : 'Published version: (not published yet)');
+  console.log(
+    published
+      ? `Published version: ${published}`
+      : 'Published version: (not published yet)',
+  );
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
 
   const base = published && semver.gt(published, local) ? published : local;
   const patchExample = semver.inc(base, 'patch');
 
   let next;
   for (;;) {
-    const input = (await rl.question(`\nEnter the new version (e.g. ${patchExample}): `)).trim();
+    const input = (
+      await rl.question(`\nEnter the new version (e.g. ${patchExample}): `)
+    ).trim();
     next = semver.valid(input);
     if (!next) {
       console.error(`Invalid semver version: ${input}`);
@@ -63,8 +72,16 @@ async function main() {
   fs.writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
 
   const tag = `v${next}`;
-  execFileSync('git', ['add', 'package.json'], { cwd: path.dirname(packagePath) });
-  execFileSync('git', ['commit', '-m', `chore(release): publish ${tag}`, '--', 'package.json']);
+  execFileSync('git', ['add', 'package.json'], {
+    cwd: path.dirname(packagePath),
+  });
+  execFileSync('git', [
+    'commit',
+    '-m',
+    `chore(release): publish ${tag}`,
+    '--',
+    'package.json',
+  ]);
   execFileSync('git', ['tag', tag]);
 
   console.log(`\nReleased ${tag}: package.json updated, committed and tagged.`);

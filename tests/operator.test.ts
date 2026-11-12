@@ -34,7 +34,11 @@ describe('Binary Operator', () => {
         operator: '*',
         left: {
           operator: '**',
-          right: { type: 'UnaryExpression', operator: '-', argument: { type: 'NumericLiteral', value: '3' } },
+          right: {
+            type: 'UnaryExpression',
+            operator: '-',
+            argument: { type: 'NumericLiteral', value: '3' },
+          },
         },
       },
     });
@@ -54,7 +58,13 @@ describe('Binary Operator', () => {
     parser.addUnaryOperator('+', 16);
 
     expect(parser.parse('1 + +2 - 3')).toMatchObject({
-      expression: { operator: '+', right: { operator: '-', left: { type: 'UnaryExpression', operator: '+' } } },
+      expression: {
+        operator: '+',
+        right: {
+          operator: '-',
+          left: { type: 'UnaryExpression', operator: '+' },
+        },
+      },
     });
     expect(parser.parse('2 + 2 - 1')).toMatchObject({
       expression: { operator: '+', right: { operator: '-' } },
@@ -86,23 +96,38 @@ describe('Binary Operator', () => {
       expression: {
         type: 'BinaryExpression',
         operator: '~',
-        left: { type: 'UnaryExpression', operator: '~', argument: { value: '1' } },
-        right: { type: 'UnaryExpression', operator: '~', argument: { value: '2' } },
+        left: {
+          type: 'UnaryExpression',
+          operator: '~',
+          argument: { value: '1' },
+        },
+        right: {
+          type: 'UnaryExpression',
+          operator: '~',
+          argument: { value: '2' },
+        },
       },
     });
   });
 
-  test.each(['(', ')', ')+', '+('])('cannot use reserved parentheses in operator `%s`', (operator) => {
-    const parser = new Parser();
-    expect(() => {
-      parser.addBinaryOperator(operator, 13);
-    }).toThrow(/The custom operator cannot use reserved character/);
-  });
+  test.each(['(', ')', ')+', '+(', ',', '+,', "'+", '+"'])(
+    'cannot use reserved characters in operator `%s`',
+    (operator) => {
+      const parser = new Parser();
+      expect(() => {
+        parser.addBinaryOperator(operator, 13);
+      }).toThrow(/The custom operator cannot use reserved character/);
+    },
+  );
 
   test('rejects NaN precedence when registering an operator', () => {
     const parser = new Parser();
-    expect(() => parser.addBinaryOperator('+', NaN)).toThrow(/The precedence should be a number/);
-    expect(parser.parse('1+2')).toMatchObject({ expression: { operator: '+' } });
+    expect(() => parser.addBinaryOperator('+', NaN)).toThrow(
+      /The precedence should be a number/,
+    );
+    expect(parser.parse('1+2')).toMatchObject({
+      expression: { operator: '+' },
+    });
   });
 
   test('invalid operator', () => {
@@ -133,7 +158,18 @@ describe('Unary Operator', () => {
     const parser = new Parser();
     parser.addUnaryOperator('double', 19);
     expect(parser.parse('double1.5')).toMatchObject({
-      expression: { type: 'UnaryExpression', operator: 'double', argument: { value: '1.5' } },
+      expression: {
+        type: 'UnaryExpression',
+        operator: 'double',
+        argument: { value: '1.5' },
+      },
+    });
+    expect(parser.parse('double(2)')).toMatchObject({
+      expression: {
+        type: 'UnaryExpression',
+        operator: 'double',
+        argument: { value: '2' },
+      },
     });
     expect(parser.parse('double .035 * 100')).toMatchObject({
       expression: { operator: '*', left: { operator: 'double' } },
@@ -144,7 +180,10 @@ describe('Unary Operator', () => {
     const parser = new Parser();
     parser.addUnaryOperator('double', 0);
     expect(parser.parse('double 1 + 4 - 2')).toMatchObject({
-      expression: { operator: 'double', argument: { operator: '-', left: { operator: '+' } } },
+      expression: {
+        operator: 'double',
+        argument: { operator: '-', left: { operator: '+' } },
+      },
     });
   });
 
@@ -153,7 +192,10 @@ describe('Unary Operator', () => {
     parser.addUnaryOperator('double', 0);
     parser.addUnaryOperator('abs', 0);
     expect(parser.parse('abs double 2 - 10')).toMatchObject({
-      expression: { operator: 'abs', argument: { operator: 'double', argument: { operator: '-' } } },
+      expression: {
+        operator: 'abs',
+        argument: { operator: 'double', argument: { operator: '-' } },
+      },
     });
   });
 });

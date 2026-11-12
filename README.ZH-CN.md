@@ -119,7 +119,13 @@ interface RootNode {
   expression: ExpressionNode;
 }
 
-type ExpressionNode = BinaryExpression | UnaryExpression | NumericLiteral | Identifier;
+type ExpressionNode =
+  | BinaryExpression
+  | UnaryExpression
+  | CallExpression
+  | NumericLiteral
+  | StringLiteral
+  | Identifier;
 
 interface BinaryExpression {
   type: 'BinaryExpression';
@@ -145,6 +151,22 @@ interface NumericLiteral {
   end: number;
   rawValue: string; // 源字符串中的原始字面量
   value: string; // 去掉 `_` 分隔符后的 `rawValue`
+}
+
+interface StringLiteral {
+  type: 'StringLiteral';
+  start: number;
+  end: number;
+  rawValue: string; // 含引号的原文
+  value: string; // 解码后的内容
+}
+
+interface CallExpression {
+  type: 'CallExpression';
+  start: number;
+  end: number;
+  callee: Identifier;
+  arguments: ExpressionNode[];
 }
 
 interface Identifier {
@@ -174,10 +196,20 @@ interface Identifier {
 
 解析器接受 `123`、`.5`、`1.5`、`1_000`、`1e3`、`1.2e-3`。`_` 分隔符会在 `NumericLiteral.value` 中移除，但在 `rawValue` 中保留。
 
+### 字符串和函数调用
+
+字符串使用单引号或双引号，支持 `\\`、`\'`、`\"`、`\/`、`\b`、`\f`、`\n`、`\r`、`\t` 和 `\v` 转义。
+
+函数名为标识符，例如 `fn()` 和 `fn('text', other(1 + 2))`。参数用逗号分隔，末尾省略逗号。函数调用优先于一元和二元运算。
+
+### 标识符语法
+
+标识符遵循 ECMAScript `IdentifierName` 的字符规则，支持 `求和(金额)` 这样的 Unicode 名称，也可以用 `$` 或 `_` 开头。`\uXXXX` 和 `\u{...}` 转义会解码为 AST 中的名称，位置仍按原文的 UTF-16 偏移量计算。字符分类使用运行环境的 Unicode 属性转义支持。
+
 ### 自定义运算符规则
 
 - 必须是不含空白字符的非空字符串，且不能以 `.`、数字或 `?` 开头
-- `(` 和 `)` 是保留字符
+- `(`、`)`、`,`、`'` 和 `"` 是保留字符
 - 更长的运算符优先匹配；相同 label 时，最近注册的定义优先
 
 ## 参与贡献

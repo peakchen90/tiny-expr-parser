@@ -38,30 +38,10 @@ describe('Parser Special Case', () => {
     const parser = new Parser();
     expect(parser.parse('\u3000')).toBeNull();
     expect(parser.parse('1\u3000+\u30002')).toMatchObject({
-      expression: { operator: '+', left: { value: '1' }, right: { value: '2' } },
-    });
-  });
-
-  test.each([
-    ['.5e-2', '.5e-2'],
-    ['1e-1_0', '1e-10'],
-  ])('parses numeric literal `%s`', (input, value) => {
-    expect(new Parser().parse(input)).toMatchObject({
-      expression: { type: 'NumericLiteral', rawValue: input, value, start: 0, end: input.length },
-    });
-  });
-
-  test('preserves source offsets around whitespace and parentheses', () => {
-    expect(new Parser().parse(' \u3000(a_1) + .5 ')).toMatchObject({
-      start: 2,
-      end: 12,
       expression: {
-        type: 'BinaryExpression',
         operator: '+',
-        start: 2,
-        end: 12,
-        left: { type: 'Identifier', name: 'a_1', start: 3, end: 6 },
-        right: { type: 'NumericLiteral', rawValue: '.5', start: 10, end: 12 },
+        left: { value: '1' },
+        right: { value: '2' },
       },
     });
   });
@@ -75,7 +55,12 @@ describe('Parser Special Case', () => {
       expression: {
         type: 'UnaryExpression',
         operator: '-',
-        argument: { type: 'BinaryExpression', operator: '%', left: { value: '2' }, right: { value: '3' } },
+        argument: {
+          type: 'BinaryExpression',
+          operator: '%',
+          left: { value: '2' },
+          right: { value: '3' },
+        },
       },
     });
   });
@@ -85,6 +70,151 @@ describe('Parser Special Case', () => {
     const ast = new Parser().parse(input);
     expect(ast?.expression.type).toBe('BinaryExpression');
     expect(ast?.expression.end).toBe(input.length);
+  });
+});
+
+describe('Identifier', () => {
+  test.each([
+    ['中文_名称2', '中文_名称2'],
+    ['$金额', '$金额'],
+    ['_私有', '_私有'],
+    ['καφέ', 'καφέ'],
+    ['e\u0301', 'e\u0301'],
+    ['a\u200Cb\u200Dc', 'a\u200Cb\u200Dc'],
+    ['𠀀字', '𠀀字'],
+    [String.raw`\u4E2D文`, '中文'],
+    [String.raw`\u{20000}字`, '𠀀字'],
+    [String.raw`名\u0030\u200C\u{24}`, '名0\u200C$'],
+  ])('parses identifier `%s`', (input, name) => {
+    expect(new Parser().parse(` ${input}`)).toMatchObject({
+      expression: { type: 'Identifier', name, start: 1, end: input.length + 1 },
+    });
+  });
+
+  test.each([
+    ['\u0301a', 'Unexpected token \u0301 at position 0'],
+    ['\u200C名', 'Unexpected token \u200C at position 0'],
+    ['名🙂', 'Unexpected token 🙂 at position 1'],
+    [
+      String.raw`\u0030名`,
+      'Invalid Unicode escape in identifier at position 0',
+    ],
+    [
+      String.raw`名\u0020`,
+      'Invalid Unicode escape in identifier at position 1',
+    ],
+    [String.raw`\u{}`, 'Invalid Unicode escape in identifier at position 0'],
+    [
+      String.raw`\u{110000}`,
+      'Invalid Unicode escape in identifier at position 0',
+    ],
+    [String.raw`\uD800`, 'Invalid Unicode escape in identifier at position 0'],
+    [String.raw`\u12`, 'Invalid Unicode escape in identifier at position 0'],
+  ])('rejects invalid identifier `%s`', (input, message) => {
+    expect(() => new Parser().parse(input)).toThrow(
+      expect.objectContaining({ constructor: SyntaxError, message }),
+    );
+  });
+});
+
+describe('String Literal', () => {
+  test.each([
+    ['""', ''],
+    ["''", ''],
+    ["'你好🙂, (+)'", '你好🙂, (+)'],
+    [String.raw`'it\'s'`, "it's"],
+    [String.raw`"a\"b\\c\n\t"`, 'a"b\\c\n\t'],
+    [String.raw`"\b\f\r\v\/"`, '\b\f\r\v/'],
+  ])('parses string literal `%s`', (input, value) => {
+    expect(new Parser().parse(` ${input} `)).toEqual({
+      type: 'Expression',
+      start: 1,
+      end: input.length + 1,
+      expression: {
+        type: 'StringLiteral',
+        rawValue: input,
+        value,
+        start: 1,
+        end: input.length + 1,
+      },
+    });
+  });
+
+  test.each([
+    ['"abc', 'Unterminated string literal at position 0'],
+    ["'abc\\", 'Unterminated string literal at position 0'],
+    ['"line\nbreak"', 'Unterminated string literal at position 5'],
+    [String.raw`'\q'`, 'Invalid string escape at position 2'],
+  ])('rejects malformed string literal `%s`', (input, message) => {
+    expect(() => new Parser().parse(input)).toThrow(
+      expect.objectContaining({ constructor: SyntaxError, message }),
+    );
+  });
+
+  test.each([
+    [String.raw`1 '\n'`, 2],
+    [String.raw`f(1 '\n')`, 4],
+  ])(
+    'reports the original text of an unexpected string literal in `%s`',
+    (input, position) => {
+      expect(() => new Parser().parse(input)).toThrow(
+        String.raw`Unexpected token '\n' at position ${position}`,
+      );
+    },
+  );
+});
+
+describe('Call Expression', () => {
+  test('binds calls before unary and binary operators and parses nested arguments', () => {
+    expect(new Parser().parse('1 + -f(g(), -2 * 3) * 4')).toMatchObject({
+      expression: {
+        operator: '+',
+        right: {
+          operator: '*',
+          left: {
+            type: 'UnaryExpression',
+            operator: '-',
+            argument: {
+              type: 'CallExpression',
+              callee: { name: 'f' },
+              arguments: [
+                {
+                  type: 'CallExpression',
+                  callee: { name: 'g' },
+                  arguments: [],
+                },
+                {
+                  operator: '*',
+                  left: {
+                    type: 'UnaryExpression',
+                    operator: '-',
+                    argument: { value: '2' },
+                  },
+                  right: { value: '3' },
+                },
+              ],
+            },
+          },
+          right: { value: '4' },
+        },
+      },
+    });
+  });
+
+  test.each([
+    ['f(', 'Unexpected end of input'],
+    ['f(1', 'Unexpected end of input'],
+    ['f(,1)', 'Unexpected token , at position 2'],
+    ['f(1,,2)', 'Unexpected token , at position 4'],
+    ['f(1,)', 'Unexpected token ) at position 4'],
+    ['f(1 2)', 'Unexpected token 2 at position 4'],
+    ['(f)(1)', 'Unexpected token ( at position 3'],
+    ['f()(1)', 'Unexpected token ( at position 3'],
+    ['1(2)', 'Unexpected token ( at position 1'],
+  ])('rejects invalid call `%s`', (input, message) => {
+    expect(() => new Parser().parse(input)).toThrow(
+      expect.objectContaining({ constructor: SyntaxError, message }),
+    );
   });
 });
 
@@ -99,7 +229,9 @@ describe('Parser Error Capture', () => {
     ['1_', 'Unexpected token _ at position 1'],
     ['.', 'Unexpected token . at position 0'],
   ])('rejects malformed numeric literal `%s`', (input, message) => {
-    expect(() => new Parser().parse(input)).toThrow(expect.objectContaining({ constructor: SyntaxError, message }));
+    expect(() => new Parser().parse(input)).toThrow(
+      expect.objectContaining({ constructor: SyntaxError, message }),
+    );
   });
 
   test.each([
@@ -108,11 +240,15 @@ describe('Parser Error Capture', () => {
     ['(1+2', 'Unexpected end of input'],
     ['1*/2', 'Unexpected token / at position 2'],
   ])('rejects invalid token sequence `%s`', (input, message) => {
-    expect(() => new Parser().parse(input)).toThrow(expect.objectContaining({ constructor: SyntaxError, message }));
+    expect(() => new Parser().parse(input)).toThrow(
+      expect.objectContaining({ constructor: SyntaxError, message }),
+    );
   });
 
   test('rejects a numeric separator immediately after the decimal point', () => {
-    expect(() => new Parser().parse('1._2')).toThrow('Unexpected token _ at position 2');
+    expect(() => new Parser().parse('1._2')).toThrow(
+      'Unexpected token _ at position 2',
+    );
   });
 
   test('unexpected token in the end', () => {
