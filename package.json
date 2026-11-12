@@ -1,38 +1,48 @@
 {
-  "name": "decimal-eval",
-  "description": "A tiny JavaScript parser for decimal arithmetic expressions.",
+  "name": "tiny-expr-parser",
+  "description": "A tiny, zero-dependency parser for arithmetic expressions, producing an AST with custom operator support.",
   "version": "0.1.1",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.cjs.js"
+    }
+  },
   "sideEffects": false,
   "scripts": {
     "start": "rolldown --config rolldown.config.mjs --watch",
     "build": "rolldown --config rolldown.config.mjs",
     "test": "vitest run",
     "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
     "format": "prettier . --write",
     "format:check": "prettier . --check"
   },
   "keywords": [
-    "decimal",
-    "mathjs",
-    "math",
+    "expression",
     "parser",
-    "js",
-    "javascript"
+    "ast",
+    "math",
+    "arithmetic",
+    "operator",
+    "typescript",
+    "zero-dependency"
   ],
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
   },
-  "homepage": "https://github.com/peakchen90/decimal-eval#readme",
+  "homepage": "https://github.com/peakchen90/tiny-expr-parser#readme",
   "bugs": {
-    "url": "https://github.com/peakchen90/decimal-eval/issues"
+    "url": "https://github.com/peakchen90/tiny-expr-parser/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:peakchen90/decimal-eval.git"
+    "url": "git@github.com:peakchen90/tiny-expr-parser.git"
   },
   "author": "peakchen90 <1558267774@qq.com>",
   "license": "MIT",
@@ -41,25 +51,12 @@
     "README.md",
     "LICENSE"
   ],
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
-      "eslint --fix",
-      "git add"
-    ]
-  },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "24.19.2",
     "@vitest/coverage-v8": "5.0.5",
     "eslint": "10.13.0",
     "eslint-config-prettier": "10.1.8",
-    "husky": "^4.3.8",
-    "lint-staged": "^10.5.4",
     "prettier": "3.9.10",
     "rolldown": "1.2.14",
     "rolldown-plugin-dts": "0.28.8",

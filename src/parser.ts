@@ -5,7 +5,7 @@ import { isNumericStart, isNumericChar, isIdentifierChar, isIdentifierStart, get
 /**
  * Expression Parser
  */
-export class Parser  {
+export class Parser {
   private readonly operators: TokenType[] = [];
   private input = ''; // 输入的解析字符串
   private pos = 0; // 当前位置

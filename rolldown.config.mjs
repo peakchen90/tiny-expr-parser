@@ -31,7 +31,7 @@ export default defineConfig([
         dir: 'dist',
         entryFileNames: 'index.umd.js',
         format: 'umd',
-        name: 'DecimalEval',
+        name: 'TinyExprParser',
         exports: 'named',
         sourcemap: true,
       },
