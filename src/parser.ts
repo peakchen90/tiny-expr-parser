@@ -41,7 +41,15 @@ export class Parser {
   private lastTokenEnd = 0; // 上一个 Token 的结束位置
   private allowPrefix = true;
 
-  constructor(readonly options?: ParserOptions) {}
+  constructor(readonly options?: ParserOptions) {
+    if (
+      options?.identifierPrefixChars?.some(
+        (char) => typeof char !== 'string' || char.length !== 1,
+      )
+    ) {
+      throw new TypeError('Each identifier prefix must be a single character');
+    }
+  }
 
   /**
    * 注册二元运算符
@@ -424,16 +432,24 @@ export class Parser {
         }
     }
 
-    this.unexpected(
-      this.input.slice(this.pos, this.pos + (code > 0xffff ? 2 : 1)),
-    );
+    const char = this.input.slice(this.pos, this.pos + (code > 0xffff ? 2 : 1));
+    if (this.options?.identifierPrefixChars?.includes(char)) {
+      // 自定义前缀后必须紧跟一个合法的标识符首字符或 Unicode 转义
+      this.pos += char.length;
+      const nextCode = this.input.codePointAt(this.pos) ?? -1;
+      if (nextCode === 92 || isIdentifierStart(nextCode)) {
+        return this.readIdentifier();
+      }
+    }
+    this.unexpected(char);
   }
 
   /**
    * 按 ECMAScript IdentifierName 读取标识符并解码 Unicode 转义
    */
   private readIdentifier(): void {
-    let chunkStart = this.pos;
+    const identifierStart = this.pos;
+    let chunkStart = this.tokenStart;
     let value = '';
 
     while (this.isValidPosition()) {
@@ -449,7 +465,7 @@ export class Parser {
         const escapedCode = Number.parseInt(match[1] ?? match[2], 16);
         if (
           escapedCode > 0x10ffff ||
-          !(this.pos === this.tokenStart
+          !(this.pos === identifierStart
             ? isIdentifierStart(escapedCode)
             : isIdentifierChar(escapedCode))
         ) {

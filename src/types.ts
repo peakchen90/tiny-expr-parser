@@ -1,6 +1,11 @@
 import type { Parser } from './parser';
 
-export interface ParserOptions {}
+export interface ParserOptions {
+  /**
+   * 额外支持的标识符前缀字符，必须为单字符，示例: "@"、"~"
+   */
+  identifierPrefixChars?: string[];
+}
 
 export type Node = RootNode | ExpressionNode | ExpressionOperator;
 

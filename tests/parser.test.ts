@@ -117,6 +117,74 @@ describe('Identifier', () => {
   });
 });
 
+describe('Identifier Prefix Characters', () => {
+  test('parses configured prefixes as part of the identifier name', () => {
+    const parser = new Parser({ identifierPrefixChars: ['@', '~'] });
+
+    expect(parser.parse(' @金额 + ~系数 ')).toMatchObject({
+      expression: {
+        type: 'BinaryExpression',
+        left: { type: 'Identifier', name: '@金额', start: 1, end: 4 },
+        right: { type: 'Identifier', name: '~系数', start: 7, end: 10 },
+      },
+    });
+  });
+
+  test('supports prefixed function names and supplementary Unicode prefixes', () => {
+    const parser = new Parser({ identifierPrefixChars: ['@', '🧮'] });
+
+    expect(parser.parse('@函数(🧮数)')).toMatchObject({
+      expression: {
+        type: 'CallExpression',
+        callee: { type: 'Identifier', name: '@函数', start: 0, end: 3 },
+        arguments: [{ type: 'Identifier', name: '🧮数', start: 4, end: 7 }],
+      },
+    });
+  });
+
+  test('decodes Unicode escapes after a configured prefix', () => {
+    const parser = new Parser({ identifierPrefixChars: ['@'] });
+
+    expect(parser.parse(String.raw`@\u540D`)).toMatchObject({
+      expression: { type: 'Identifier', name: '@名', start: 0, end: 7 },
+    });
+  });
+
+  test('requires configuration and only accepts extra characters at the start', () => {
+    expect(() => new Parser().parse('@名称')).toThrow(SyntaxError);
+
+    const parser = new Parser({ identifierPrefixChars: ['@'] });
+    expect(() => parser.parse('变量@名称')).toThrow(SyntaxError);
+  });
+
+  test.each(['@', '@123', '@@名称', '@ 名称', String.raw`@\u0030名称`])(
+    'rejects a prefix without a valid identifier in `%s`',
+    (input) => {
+      const parser = new Parser({ identifierPrefixChars: ['@'] });
+      expect(() => parser.parse(input)).toThrow(SyntaxError);
+    },
+  );
+
+  test('keeps registered operators ahead of identifier prefixes', () => {
+    const parser = new Parser({ identifierPrefixChars: ['~'] });
+    parser.addUnaryOperator('~', 16);
+
+    expect(parser.parse('~名称')).toMatchObject({
+      expression: {
+        type: 'UnaryExpression',
+        operator: { type: 'ExpressionOperator', value: '~' },
+        argument: { type: 'Identifier', name: '名称' },
+      },
+    });
+  });
+
+  test.each(['', '@@'])('rejects invalid prefix option `%s`', (prefix) => {
+    expect(() => new Parser({ identifierPrefixChars: [prefix] })).toThrow(
+      'Each identifier prefix must be a single character',
+    );
+  });
+});
+
 describe('String Literal', () => {
   test.each([
     ['""', ''],

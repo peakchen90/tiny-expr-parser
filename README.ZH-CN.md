@@ -86,9 +86,11 @@ new Parser().parse('1 + +');
 
 ## API
 
-### `new Parser()`
+### `new Parser(options?: ParserOptions)`
 
 创建一个解析器实例，同一实例可连续解析多个表达式。
+
+- `identifierPrefixChars?: string[]` 为标识符添加单字符前缀。例如，`new Parser({ identifierPrefixChars: ['@'] })` 会将 `@名称` 解析为标识符，名称保留 `@`。前缀后必须紧跟一个合法标识符，已有 token 和已注册运算符仍优先匹配。
 
 #### `parser.parse(expression: string): RootNode | null`
 
