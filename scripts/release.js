@@ -9,12 +9,13 @@ const semver = require('semver');
 const REGISTRY = 'https://registry.npmjs.org';
 const packagePath = path.join(__dirname, '..', 'package.json');
 
-async function fetchLatestVersion(packageName) {
+async function fetchMaxVersion(packageName) {
   try {
     const response = await fetch(`${REGISTRY}/${packageName}`);
     if (!response.ok) return null;
     const data = await response.json();
-    return data['dist-tags']?.latest ?? null;
+    const versions = Object.keys(data.versions ?? {});
+    return versions.sort(semver.rcompare)[0] ?? null;
   } catch {
     return null;
   }
@@ -32,13 +33,13 @@ function tagExists(tag) {
 async function main() {
   const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const local = pkg.version;
-  const published = await fetchLatestVersion(pkg.name);
+  const published = await fetchMaxVersion(pkg.name);
 
   console.log(`Package: ${pkg.name}`);
   console.log(`Local version:    ${local}`);
   console.log(
     published
-      ? `Published version: ${published}`
+      ? `Max published version: ${published}`
       : 'Published version: (not published yet)',
   );
 
