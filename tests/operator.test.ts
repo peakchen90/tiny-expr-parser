@@ -64,6 +64,34 @@ describe('Binary Operator', () => {
     });
   });
 
+  test('uses the most recently registered precedence for the same binary operator', () => {
+    const parser = new Parser();
+    parser.addBinaryOperator('%', 10);
+    expect(parser.parse('1+2%3')).toMatchObject({
+      expression: { operator: '%', left: { operator: '+' } },
+    });
+
+    parser.addBinaryOperator('%', 15);
+    expect(parser.parse('1+2%3')).toMatchObject({
+      expression: { operator: '+', right: { operator: '%' } },
+    });
+  });
+
+  test('uses context to distinguish unary and binary operators with the same symbol', () => {
+    const parser = new Parser();
+    parser.addUnaryOperator('~', 16);
+    parser.addBinaryOperator('~', 13);
+
+    expect(parser.parse('~1~~2')).toMatchObject({
+      expression: {
+        type: 'BinaryExpression',
+        operator: '~',
+        left: { type: 'UnaryExpression', operator: '~', argument: { value: '1' } },
+        right: { type: 'UnaryExpression', operator: '~', argument: { value: '2' } },
+      },
+    });
+  });
+
   test.each(['(', ')', ')+', '+('])('cannot use reserved parentheses in operator `%s`', (operator) => {
     const parser = new Parser();
     expect(() => {
