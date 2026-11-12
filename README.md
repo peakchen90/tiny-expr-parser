@@ -3,6 +3,7 @@
 A tiny, zero-dependency expression parser library. It parses a string like `1 + 2 * (3 - a)` into an AST.
 
 [![CI](https://github.com/peakchen90/tiny-expr-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/peakchen90/tiny-expr-parser/actions/workflows/ci.yml)
+[![Codecov](https://img.shields.io/codecov/c/github/peakchen90/tiny-expr-parser.svg)](https://codecov.io/gh/peakchen90/tiny-expr-parser)
 [![npm](https://img.shields.io/npm/v/tiny-expr-parser.svg)](https://www.npmjs.com/package/tiny-expr-parser)
 [![license](https://img.shields.io/github/license/peakchen90/tiny-expr-parser.svg)](./LICENSE)
 

@@ -3,6 +3,7 @@
 一个小型零依赖的表达式解析库。支持将 `1 + 2 * (3 - a)` 这样的字符串解析成 AST。
 
 [![CI](https://github.com/peakchen90/tiny-expr-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/peakchen90/tiny-expr-parser/actions/workflows/ci.yml)
+[![Codecov](https://img.shields.io/codecov/c/github/peakchen90/tiny-expr-parser.svg)](https://codecov.io/gh/peakchen90/tiny-expr-parser)
 [![npm](https://img.shields.io/npm/v/tiny-expr-parser.svg)](https://www.npmjs.com/package/tiny-expr-parser)
 [![license](https://img.shields.io/github/license/peakchen90/tiny-expr-parser.svg)](./LICENSE)
 
