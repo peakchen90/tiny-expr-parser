@@ -11,9 +11,8 @@ English | [简体中文](./README.ZH-CN.md)
 
 ## Features
 
-- Zero dependencies, ships ESM / CommonJS / UMD builds
-- Supports custom unary / binary operators and identifiers
-- Invalid input throws a `SyntaxError` with the offending position
+- Tiny, zero dependencies
+- Supports custom operators
 
 Requires Node.js >= 24 to develop and build; the published package runs in Node.js and modern browsers.
 
