@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { Parser } from '../src';
+import { Parser, ParserError } from '../src';
 import { astFixtures } from './fixtures/ast';
 
 describe('Parser Fixtures', () => {
@@ -247,7 +247,7 @@ describe('Identifier', () => {
     [String.raw`\u12`, 'Invalid Unicode escape in identifier at position 0'],
   ])('rejects invalid identifier `%s`', (input, message) => {
     expect(() => new Parser().parse(input)).toThrow(
-      expect.objectContaining({ constructor: SyntaxError, message }),
+      expect.objectContaining({ constructor: ParserError, message }),
     );
   });
 });
@@ -353,7 +353,7 @@ describe('String Literal', () => {
     [String.raw`'\q'`, 'Invalid string escape at position 2'],
   ])('rejects malformed string literal `%s`', (input, message) => {
     expect(() => new Parser().parse(input)).toThrow(
-      expect.objectContaining({ constructor: SyntaxError, message }),
+      expect.objectContaining({ constructor: ParserError, message }),
     );
   });
 
@@ -421,25 +421,46 @@ describe('Call Expression', () => {
     ['1(2)', 'Unexpected token ( at position 1'],
   ])('rejects invalid call `%s`', (input, message) => {
     expect(() => new Parser().parse(input)).toThrow(
-      expect.objectContaining({ constructor: SyntaxError, message }),
+      expect.objectContaining({ constructor: ParserError, message }),
     );
   });
 });
 
 describe('Parser Messages', () => {
   test.each([
-    ['1^2', '位置 1 处出现意外的标记 ^'],
-    ['1+', '表达式意外结束'],
-    ['"abc', '字符串未闭合（位置 0）'],
-    [String.raw`'\q'`, '无效的字符串转义（位置 2）'],
-    [String.raw`\u0030名`, '标识符中的 Unicode 转义无效（位置 0）'],
-  ])('uses the Chinese message for `%s`', (input, message) => {
-    const parser = new Parser({ messages: Parser.Messages.zh });
+    ['1^2', '位置 1 处出现意外的标记 ^', 'unexpectedToken', 1, 2],
+    ['1+ ', '表达式意外结束', 'unexpectedEndOfInput', 3, 3],
+    ['"abc', '字符串未闭合（位置 0）', 'unterminatedStringLiteral', 0, 4],
+    [
+      String.raw`'\q'`,
+      '无效的字符串转义（位置 2）',
+      'invalidStringEscape',
+      2,
+      3,
+    ],
+    [
+      String.raw`\u0030名`,
+      '标识符中的 Unicode 转义无效（位置 0）',
+      'invalidIdentifierEscape',
+      0,
+      6,
+    ],
+  ])(
+    'uses the Chinese message for `%s`',
+    (input, message, code, start, end) => {
+      const parser = new Parser({ messages: Parser.Messages.zh });
 
-    expect(() => parser.parse(input)).toThrow(
-      expect.objectContaining({ constructor: SyntaxError, message }),
-    );
-  });
+      expect(() => parser.parse(input)).toThrow(
+        expect.objectContaining({
+          constructor: ParserError,
+          message,
+          code,
+          start,
+          end,
+        }),
+      );
+    },
+  );
 
   test('formats placeholders in a complete custom message set', () => {
     const parser = new Parser({
@@ -472,6 +493,40 @@ describe('Parser Messages', () => {
 
 describe('Parser Error Capture', () => {
   test.each([
+    ['1 total', 'unexpectedToken', 2, 7],
+    [String.raw`1 '\n'`, 'unexpectedToken', 2, 6],
+    ['名🙂', 'unexpectedToken', 1, 3],
+    ['1e🙂', 'unexpectedToken', 2, 4],
+    ['"a\nb"', 'unterminatedStringLiteral', 2, 3],
+    [String.raw`\u12`, 'invalidIdentifierEscape', 0, 1],
+  ])('reports the source range for `%s`', (input, code, start, end) => {
+    expect(() => new Parser().parse(input)).toThrow(
+      expect.objectContaining({ constructor: ParserError, code, start, end }),
+    );
+  });
+
+  test('serializes a ParserError and remains a SyntaxError', () => {
+    const error = new ParserError(
+      'Unexpected token ^ at position 1',
+      'unexpectedToken',
+      1,
+      2,
+    );
+    const json = {
+      name: 'ParserError',
+      code: 'unexpectedToken',
+      start: 1,
+      end: 2,
+      message: 'Unexpected token ^ at position 1',
+      stack: expect.any(String),
+    };
+
+    expect(error).toBeInstanceOf(SyntaxError);
+    expect(error.toJSON()).toEqual(json);
+    expect(JSON.parse(JSON.stringify(error))).toEqual(json);
+  });
+
+  test.each([
     ['1e', 'Unexpected token e at position 1'],
     ['1e+', 'Unexpected token + at position 2'],
     ['1e+q', 'Unexpected token q at position 3'],
@@ -483,7 +538,7 @@ describe('Parser Error Capture', () => {
     ['-.', 'Unexpected token . at position 1'],
   ])('rejects malformed numeric literal `%s`', (input, message) => {
     expect(() => new Parser().parse(input)).toThrow(
-      expect.objectContaining({ constructor: SyntaxError, message }),
+      expect.objectContaining({ constructor: ParserError, message }),
     );
   });
 
@@ -494,7 +549,7 @@ describe('Parser Error Capture', () => {
     ['1*/2', 'Unexpected token / at position 2'],
   ])('rejects invalid token sequence `%s`', (input, message) => {
     expect(() => new Parser().parse(input)).toThrow(
-      expect.objectContaining({ constructor: SyntaxError, message }),
+      expect.objectContaining({ constructor: ParserError, message }),
     );
   });
 

@@ -77,11 +77,11 @@ const first = parser.parse('1 + 1 % 2');
 const second = parser.parse('2 + sin 2');
 ```
 
-非法表达式会抛出带位置信息的 `SyntaxError`：
+非法表达式会抛出继承自 `SyntaxError` 的 `ParserError`。
 
 ```js
-new Parser().parse('1 + +');
-// SyntaxError: Unexpected end of input
+new Parser().parse('1 +');
+// ParserError: Unexpected end of input
 ```
 
 ## API
@@ -95,7 +95,7 @@ new Parser().parse('1 + +');
 
 #### `parser.parse(expression: string): RootNode | null`
 
-解析表达式并返回 AST。空字符串（或纯空白字符）返回 `null`。非法输入抛出 `SyntaxError`。
+解析表达式并返回 AST。空字符串（或纯空白字符）返回 `null`。非法输入抛出 `ParserError`。
 
 #### `parser.stringify(node: Node): string`
 
@@ -112,6 +112,8 @@ const parser = new Parser({ messages: Parser.Messages.zh });
 ```
 
 `{v}` 是触发错误的 token 文本。`{pos}` 是从 0 开始的 UTF-16 偏移量，输入提前结束时取输入长度。
+
+`ParserError.code` 对应下表的国际化键。`start` 和 `end` 是从 0 开始的 UTF-16 源码偏移，含首不含尾。`unexpectedEndOfInput` 的两个偏移都等于输入长度。`toJSON()` 返回 `name`、`code`、`start`、`end`、`message` 和 `stack`。
 
 | `Messages` 键               | 场景                                                        | 占位符         |
 | --------------------------- | ----------------------------------------------------------- | -------------- |

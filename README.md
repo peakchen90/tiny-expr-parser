@@ -77,11 +77,11 @@ const first = parser.parse('1 + 1 % 2');
 const second = parser.parse('2 + sin 2');
 ```
 
-Invalid expressions throw a `SyntaxError` that includes the position:
+Invalid expressions throw a `ParserError`, which extends `SyntaxError`.
 
 ```js
-new Parser().parse('1 + +');
-// SyntaxError: Unexpected end of input
+new Parser().parse('1 +');
+// ParserError: Unexpected end of input
 ```
 
 ## API
@@ -95,7 +95,7 @@ Create a parser instance. The same instance can parse multiple expressions seque
 
 #### `parser.parse(expression: string): RootNode | null`
 
-Parse an expression and return its AST. Returns `null` for an empty / whitespace-only string. Throws `SyntaxError` on invalid input.
+Parse an expression and return its AST. Returns `null` for an empty / whitespace-only string. Throws `ParserError` on invalid input.
 
 #### `parser.stringify(node: Node): string`
 
@@ -112,6 +112,8 @@ const parser = new Parser({ messages: Parser.Messages.zh });
 ```
 
 `{v}` is the offending token text. `{pos}` is the zero-based UTF-16 offset in the input, or the input length for an unexpected end.
+
+`code` is the message key in the table below. `start` and `end` are zero-based UTF-16 offsets with an inclusive start and exclusive end. For `unexpectedEndOfInput`, both offsets equal the input length. `toJSON()` returns `name`, `code`, `start`, `end`, `message`, and `stack`.
 
 | `Messages` key              | Scenario                                                                                          | Placeholders   |
 | --------------------------- | ------------------------------------------------------------------------------------------------- | -------------- |

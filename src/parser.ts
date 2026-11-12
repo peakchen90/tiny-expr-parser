@@ -16,6 +16,7 @@ import type {
   Messages,
 } from './types';
 import { enMessages, zhCNMessages } from './messages';
+import { ParserError } from './parser-error';
 import { tokenTypes as tt } from './token-type';
 import {
   isNumericStart,
@@ -354,7 +355,7 @@ export class Parser {
       });
     }
 
-    return this.unexpected(value, start);
+    return this.unexpected();
   }
 
   /**
@@ -520,7 +521,7 @@ export class Parser {
       this.pos++;
     }
 
-    this.raise(this.tokenStart, 'unterminatedStringLiteral');
+    this.raise(this.tokenStart, 'unterminatedStringLiteral', this.pos);
   }
 
   /**
@@ -605,13 +606,20 @@ export class Parser {
 
         // 转义后的码点也必须满足当前位置的标识符规则
         const escapedCode = Number.parseInt(match[1] ?? match[2], 16);
-        if (
-          escapedCode > 0x10ffff ||
-          !(this.pos === identifierStart
-            ? isIdentifierStart(escapedCode)
-            : isIdentifierChar(escapedCode))
-        ) {
-          this.raise(this.pos, 'invalidIdentifierEscape');
+        let valid = false;
+        if (escapedCode <= 0x10ffff) {
+          if (this.pos === identifierStart) {
+            valid = isIdentifierStart(escapedCode);
+          } else {
+            valid = isIdentifierChar(escapedCode);
+          }
+        }
+        if (!valid) {
+          this.raise(
+            this.pos,
+            'invalidIdentifierEscape',
+            this.pos + match[0].length,
+          );
         }
         value +=
           this.input.slice(chunkStart, this.pos) +
@@ -717,35 +725,47 @@ export class Parser {
   /**
    * 抛出 Unexpected token 异常
    * @param token
-   * @param pos
+   * @param start
    */
-  private unexpected(token?: string, pos?: number): never {
+  private unexpected(token?: string, start = this.tokenStart): never {
+    const end = token === undefined ? this.tokenEnd : undefined;
     token ??=
       this.tokenType === tt.string
         ? this.input.slice(this.tokenStart, this.tokenEnd)
         : this.tokenText;
-    this.raise(pos ?? this.tokenStart, 'unexpectedToken', token);
+    this.raise(start, 'unexpectedToken', end, token);
   }
 
   /**
    * 用当前语言的提示模板抛出语法错误
-   * @param pos
-   * @param key
+   * @param start
+   * @param code
+   * @param end
    * @param value
    */
-  private raise(pos: number, key: keyof Messages, value?: string): never {
-    if (pos >= this.input.length) {
-      key = 'unexpectedEndOfInput';
+  private raise(
+    start: number,
+    code: keyof Messages,
+    end?: number,
+    value?: string,
+  ): never {
+    if (start >= this.input.length) {
+      code = 'unexpectedEndOfInput';
+      start = this.input.length;
+      end = start;
       value = undefined;
     }
 
-    const template = this.options.messages[key];
-    throw new SyntaxError(
-      template.replace(MESSAGE_PLACEHOLDER_PATTERN, (placeholder) => {
-        if (placeholder === '{pos}') return String(pos);
+    // 词法错误未提供完整范围时，覆盖当前位置的一个 Unicode 码点。
+    end ??= start + ((this.input.codePointAt(start) ?? 0) > 0xffff ? 2 : 1);
+    const message = this.options.messages[code].replace(
+      MESSAGE_PLACEHOLDER_PATTERN,
+      (placeholder) => {
+        if (placeholder === '{pos}') return String(start);
         return value ?? placeholder;
-      }),
+      },
     );
+    throw new ParserError(message, code, start, end);
   }
 
   private addOperator(

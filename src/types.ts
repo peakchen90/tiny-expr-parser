@@ -15,7 +15,7 @@ export interface ParserOptions {
   };
 }
 
-/** `parse()` 抛出的语法错误提示模板 */
+/** `parse()` 抛出的 `ParserError` 提示模板 */
 export interface Messages {
   /** 意外的 token，{v} 为报错文本，{pos} 为位置 */
   unexpectedToken: string;
