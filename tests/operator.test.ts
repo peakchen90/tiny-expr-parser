@@ -254,3 +254,132 @@ describe('Unary Operator', () => {
     });
   });
 });
+
+describe('Operator Options', () => {
+  test('binaryOperators registers binary operators', () => {
+    const parser = new Parser({
+      binaryOperators: { '%': { precedence: 14 } },
+    });
+    expect(parser.parse('1 + 2 % 3')).toMatchObject({
+      expression: {
+        operator: { value: '+' },
+        right: { operator: { value: '%' } },
+      },
+    });
+  });
+
+  test('unaryOperators registers prefix unary operators', () => {
+    const parser = new Parser({
+      unaryOperators: { sin: { precedence: 16 } },
+    });
+    expect(parser.parse('2 + sin 2')).toMatchObject({
+      expression: {
+        operator: { value: '+' },
+        right: {
+          type: 'UnaryExpression',
+          operator: { value: 'sin' },
+          argument: { value: '2' },
+        },
+      },
+    });
+  });
+
+  test('overrides built-in operator precedence', () => {
+    const parser = new Parser({
+      binaryOperators: { '+': { precedence: 20 } },
+    });
+    expect(parser.parse('1 + 2 * 3')).toMatchObject({
+      expression: {
+        operator: { value: '*' },
+        left: { operator: { value: '+' } },
+      },
+    });
+  });
+
+  test('precedence from options affects grouping', () => {
+    const parser = new Parser({
+      binaryOperators: { '+': { precedence: 1 } },
+      unaryOperators: { sin: { precedence: 5 } },
+    });
+    expect(parser.parse('sin 2 + 3')).toMatchObject({
+      expression: {
+        operator: { value: '+' },
+        left: {
+          type: 'UnaryExpression',
+          operator: { value: 'sin' },
+          argument: { value: '2' },
+        },
+      },
+    });
+  });
+
+  test('the same symbol can be configured as both unary and binary', () => {
+    const parser = new Parser({
+      binaryOperators: { '~': { precedence: 13 } },
+      unaryOperators: { '~': { precedence: 16 } },
+    });
+
+    expect(parser.parse('~1~~2')).toMatchObject({
+      expression: {
+        type: 'BinaryExpression',
+        operator: { value: '~' },
+        left: {
+          type: 'UnaryExpression',
+          operator: { value: '~' },
+          argument: { value: '1' },
+        },
+        right: {
+          type: 'UnaryExpression',
+          operator: { value: '~' },
+          argument: { value: '2' },
+        },
+      },
+    });
+  });
+
+  test('longer operators from options match first', () => {
+    const parser = new Parser({
+      binaryOperators: { '**': { precedence: 15 } },
+    });
+    expect(parser.parse('2 ** 3')).toMatchObject({
+      expression: {
+        type: 'BinaryExpression',
+        operator: { value: '**', start: 2, end: 4 },
+      },
+    });
+  });
+
+  test('addBinaryOperator after construction takes precedence over options', () => {
+    const parser = new Parser({
+      binaryOperators: { '%': { precedence: 10 } },
+    });
+    expect(parser.parse('1+2%3')).toMatchObject({
+      expression: {
+        operator: { value: '%' },
+        left: { operator: { value: '+' } },
+      },
+    });
+
+    parser.addBinaryOperator('%', 15);
+    expect(parser.parse('1+2%3')).toMatchObject({
+      expression: {
+        operator: { value: '+' },
+        right: { operator: { value: '%' } },
+      },
+    });
+  });
+
+  test('invalid operator options throw', () => {
+    expect(() => {
+      new Parser({ binaryOperators: { '': { precedence: 1 } } });
+    }).toThrow(/The custom operator should be a non-empty string/);
+    expect(() => {
+      new Parser({ binaryOperators: { '(': { precedence: 13 } } });
+    }).toThrow(
+      /The custom operator cannot use reserved characters, including parentheses, commas and quotes/,
+    );
+    expect(() => {
+      new Parser({ unaryOperators: { '%': { precedence: -1 } } });
+    }).toThrow(/The precedence should be a number greater than or equal to 0/);
+  });
+});

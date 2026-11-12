@@ -56,6 +56,8 @@ export class Parser {
   constructor(options?: ParserOptions) {
     const features = options?.features;
     const messages = options?.messages;
+    const binaryOperators = options?.binaryOperators;
+    const unaryOperators = options?.unaryOperators;
     this.options = {
       identifierPrefixChars: options?.identifierPrefixChars ?? [],
       messages: messages ?? Parser.Messages.en,
@@ -64,6 +66,8 @@ export class Parser {
         string: features?.string !== false,
         call: features?.call !== false,
       },
+      binaryOperators: binaryOperators ?? {},
+      unaryOperators: unaryOperators ?? {},
     };
 
     if (
@@ -84,6 +88,17 @@ export class Parser {
         if (typeof messages?.[key] !== 'string') {
           throw new TypeError(`Missing or invalid parser message: ${key}`);
         }
+      }
+    }
+
+    if (binaryOperators) {
+      for (const value of Object.keys(binaryOperators)) {
+        this.addBinaryOperator(value, binaryOperators[value].precedence);
+      }
+    }
+    if (unaryOperators) {
+      for (const value of Object.keys(unaryOperators)) {
+        this.addUnaryOperator(value, unaryOperators[value].precedence);
       }
     }
   }

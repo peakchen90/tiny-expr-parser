@@ -128,6 +128,8 @@ describe('Parser Features', () => {
       identifierPrefixChars: [],
       messages: Parser.Messages.en,
       features: { number: true, string: true, call: false },
+      binaryOperators: {},
+      unaryOperators: {},
     });
   });
 

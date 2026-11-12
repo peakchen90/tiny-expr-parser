@@ -13,6 +13,10 @@ export interface ParserOptions {
     string?: boolean;
     call?: boolean;
   };
+  /** 自定义二元运算符，键为运算符文本，示例: `{ '%': { precedence: 14 } }` */
+  binaryOperators?: Record<string, { precedence: number }>;
+  /** 自定义前缀一元运算符，键为运算符文本，示例: `{ sin: { precedence: 16 } }` */
+  unaryOperators?: Record<string, { precedence: number }>;
 }
 
 /** `parse()` 抛出的 `ParserError` 提示模板 */

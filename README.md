@@ -65,14 +65,19 @@ The returned AST is a plain JSON-serializable object:
 }
 ```
 
-Custom operators are registered per parser instance. See [precedence of built-in operators](#precedence-of-built-in-operators) when choosing a precedence.
+Custom operators are registered per parser instance, either through constructor options or instance methods. See [precedence of built-in operators](#precedence-of-built-in-operators) when choosing a precedence.
 
 ```js
 import { Parser } from 'tiny-expr-parser';
 
-const parser = new Parser();
-parser.addBinaryOperator('%', 14); // remainder
-parser.addUnaryOperator('sin', 16);
+const parser = new Parser({
+  binaryOperators: { '%': { precedence: 14 } }, // remainder
+  unaryOperators: { sin: { precedence: 16 } },
+});
+
+// equivalent instance methods:
+// parser.addBinaryOperator('%', 14);
+// parser.addUnaryOperator('sin', 16);
 
 const first = parser.parse('1 + 1 % 2');
 const second = parser.parse('2 + sin 2');
@@ -93,6 +98,8 @@ Create a parser instance. The same instance can parse multiple expressions seque
 
 - `identifierPrefixChars?: string[]` allows extra prefixes consisting of a single non-whitespace character. For example, `new Parser({ identifierPrefixChars: ['@'] })` parses `@name` as an identifier whose name includes `@`. The prefix must be followed immediately by a valid identifier. Existing tokens and registered operators keep their matching priority.
 - `features?: { number?: boolean; string?: boolean; call?: boolean }` controls support for numeric literals, string literals, and function calls. Each feature is enabled by default. Set a feature to `false` to reject that syntax. Grouping parentheses remain available when `call` is disabled.
+- `binaryOperators?: Record<string, { precedence: number }>` registers binary operators at construction. Keys are operator labels; each value sets the precedence. The [custom operator rules](#custom-operator-rules) apply, and `parser.addBinaryOperator()` can still update them afterwards.
+- `unaryOperators?: Record<string, { precedence: number }>` registers prefix unary operators at construction, with the same rules as `binaryOperators`.
 
 #### `parser.parse(expression: string): RootNode | null`
 
@@ -230,7 +237,7 @@ Precedence follows the [MDN operator precedence table](https://developer.mozilla
 
 The parser accepts `123`, `.5`, `1.5`, `1_000`, `1e3`, `1.2e-3`, and negative literals such as `-2` and `-.5`. In operand position, an adjacent minus sign is part of the number, as in `1--2`. The `_` separator is stripped in `NumericLiteral.value` but preserved in `rawValue`.
 
-Register `+` or `-` with `addUnaryOperator` to use it as a prefix operator. Registered operators take precedence over built-in token matching.
+Register `+` or `-` as a prefix operator with `addUnaryOperator` or the `unaryOperators` option. Registered operators take precedence over built-in token matching.
 
 ### Strings and calls
 

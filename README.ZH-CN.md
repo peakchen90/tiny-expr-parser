@@ -65,14 +65,19 @@ const ast = parser.parse('1 + 2 * a');
 }
 ```
 
-自定义运算符按解析器实例注册。设置优先级时可参考[内置运算符的优先级](#内置运算符优先级)。
+自定义运算符按解析器实例注册，可通过构造参数或实例方法配置。设置优先级时可参考[内置运算符的优先级](#内置运算符优先级)。
 
 ```js
 import { Parser } from 'tiny-expr-parser';
 
-const parser = new Parser();
-parser.addBinaryOperator('%', 14); // 取余
-parser.addUnaryOperator('sin', 16);
+const parser = new Parser({
+  binaryOperators: { '%': { precedence: 14 } }, // 取余
+  unaryOperators: { sin: { precedence: 16 } },
+});
+
+// 等价的实例方法：
+// parser.addBinaryOperator('%', 14);
+// parser.addUnaryOperator('sin', 16);
 
 const first = parser.parse('1 + 1 % 2');
 const second = parser.parse('2 + sin 2');
@@ -93,6 +98,8 @@ new Parser().parse('1 +');
 
 - `identifierPrefixChars?: string[]` 为标识符添加单字符前缀，每个前缀必须是非空白字符。例如，`new Parser({ identifierPrefixChars: ['@'] })` 会将 `@名称` 解析为标识符，名称保留 `@`。前缀后必须紧跟一个合法标识符，已有 token 和已注册运算符仍优先匹配。
 - `features?: { number?: boolean; string?: boolean; call?: boolean }` 控制是否支持数字字面量、字符串字面量和函数调用，每项默认启用。设为 `false` 时，对应语法会报错。关闭 `call` 后仍可使用括号分组。
+- `binaryOperators?: Record<string, { precedence: number }>` 在构造时注册二元运算符，键为运算符文本，值为优先级配置。遵循[自定义运算符规则](#自定义运算符规则)，之后仍可通过 `parser.addBinaryOperator()` 更新。
+- `unaryOperators?: Record<string, { precedence: number }>` 在构造时注册前缀一元运算符，规则与 `binaryOperators` 相同。
 
 #### `parser.parse(expression: string): RootNode | null`
 
@@ -230,7 +237,7 @@ interface Identifier {
 
 解析器接受 `123`、`.5`、`1.5`、`1_000`、`1e3`、`1.2e-3`，以及 `-2`、`-.5` 等负数字面量。在操作数位置，紧贴数字的负号属于数字本身，例如 `1--2` 的右操作数是 `-2`。`_` 分隔符会在 `NumericLiteral.value` 中移除，但在 `rawValue` 中保留。
 
-前缀一元 `+` 和 `-` 可通过 `addUnaryOperator` 注册。已注册的运算符优先匹配。
+前缀一元 `+` 和 `-` 可通过 `addUnaryOperator` 或 `unaryOperators` 选项注册。已注册的运算符优先匹配。
 
 ### 字符串和函数调用
 
