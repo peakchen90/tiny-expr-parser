@@ -91,6 +91,7 @@ new Parser().parse('1 + +');
 创建一个解析器实例，同一实例可连续解析多个表达式。
 
 - `identifierPrefixChars?: string[]` 为标识符添加单字符前缀，每个前缀必须是非空白字符。例如，`new Parser({ identifierPrefixChars: ['@'] })` 会将 `@名称` 解析为标识符，名称保留 `@`。前缀后必须紧跟一个合法标识符，已有 token 和已注册运算符仍优先匹配。
+- `features?: { number?: boolean; string?: boolean; call?: boolean }` 控制是否支持数字字面量、字符串字面量和函数调用，每项默认启用。设为 `false` 时，对应语法会报错。关闭 `call` 后仍可使用括号分组。
 
 #### `parser.parse(expression: string): RootNode | null`
 

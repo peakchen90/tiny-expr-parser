@@ -73,6 +73,80 @@ describe('Parser Special Case', () => {
   });
 });
 
+describe('Parser Features', () => {
+  test('disables number literals independently', () => {
+    const parser = new Parser({
+      features: { number: false },
+    });
+
+    expect(() => parser.parse('f(2)')).toThrow(
+      'Unexpected token 2 at position 2',
+    );
+    expect(() => parser.parse('.5')).toThrow(
+      'Unexpected token . at position 0',
+    );
+    expect(parser.parse('f("text")')).toMatchObject({
+      expression: {
+        type: 'CallExpression',
+        arguments: [{ type: 'StringLiteral', value: 'text' }],
+      },
+    });
+  });
+
+  test('disables string literals independently', () => {
+    const parser = new Parser({
+      features: { string: false },
+    });
+
+    expect(() => parser.parse("f('text')")).toThrow(
+      "Unexpected token ' at position 2",
+    );
+    expect(() => parser.parse('"text"')).toThrow(
+      'Unexpected token " at position 0',
+    );
+    expect(parser.parse('f(2)')).toMatchObject({
+      expression: {
+        type: 'CallExpression',
+        arguments: [{ type: 'NumericLiteral', value: '2' }],
+      },
+    });
+  });
+
+  test('disables calls while allowing grouping parentheses', () => {
+    const parser = new Parser({
+      features: { call: false },
+    });
+
+    expect(() => parser.parse('f()')).toThrow(
+      'Unexpected token ( at position 1',
+    );
+    expect(parser.parse('("text" + 2)')).toMatchObject({
+      expression: {
+        type: 'BinaryExpression',
+        left: { type: 'StringLiteral', value: 'text' },
+        right: { type: 'NumericLiteral', value: '2' },
+      },
+    });
+  });
+
+  test('parses identifier expressions with all features disabled', () => {
+    const parser = new Parser({
+      features: { number: false, string: false, call: false },
+    });
+
+    expect(parser.parse('-(a + b)')).toMatchObject({
+      expression: {
+        type: 'UnaryExpression',
+        argument: {
+          type: 'BinaryExpression',
+          left: { type: 'Identifier', name: 'a' },
+          right: { type: 'Identifier', name: 'b' },
+        },
+      },
+    });
+  });
+});
+
 describe('Identifier', () => {
   test.each([
     ['中文_名称2', '中文_名称2'],

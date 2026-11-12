@@ -216,7 +216,7 @@ export class Parser {
         type: 'Identifier',
         name: value,
       });
-      if (!this.eat(tt.parenL)) {
+      if (this.options?.features?.call === false || !this.eat(tt.parenL)) {
         return identifier;
       }
 
@@ -271,10 +271,14 @@ export class Parser {
   private readToken(): void {
     const code = this.codeAt(this.pos);
     if (isNumericStart(code)) {
-      return this.readNumeric();
+      return this.options?.features?.number === false
+        ? this.unexpected(this.input[this.pos])
+        : this.readNumeric();
     }
     if (code === 34 || code === 39) {
-      return this.readString(code);
+      return this.options?.features?.string === false
+        ? this.unexpected(this.input[this.pos])
+        : this.readString(code);
     }
     return this.readTokenFromCode();
   }

@@ -7,6 +7,12 @@ export interface ParserOptions {
   identifierPrefixChars?: string[];
   /** 自定义整套解析错误提示，省略时使用英文 */
   messages?: Messages;
+  /** 支持的语法，每项默认启用 */
+  features?: {
+    number?: boolean;
+    string?: boolean;
+    call?: boolean;
+  };
 }
 
 /** `parse()` 抛出的语法错误提示模板 */
