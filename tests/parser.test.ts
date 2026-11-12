@@ -127,7 +127,15 @@ describe('Parser Features', () => {
     expect(parser.options).toEqual({
       identifierPrefixChars: [],
       messages: Parser.Messages.en,
-      features: { number: true, string: true, call: false },
+      features: {
+        number: true,
+        string: true,
+        call: false,
+        plusOperator: true,
+        minusOperator: true,
+        timesOperator: true,
+        divOperator: true,
+      },
       binaryOperators: {},
       unaryOperators: {},
     });
@@ -170,6 +178,75 @@ describe('Parser Features', () => {
       expression: {
         type: 'CallExpression',
         arguments: [{ type: 'NumericLiteral', value: '2' }],
+      },
+    });
+  });
+
+  test('disables the plus operator independently', () => {
+    const parser = new Parser({ features: { plusOperator: false } });
+
+    expect(() => parser.parse('1 + 2')).toThrow(
+      'Unexpected token + at position 2',
+    );
+    expect(parser.parse('1 - 2 * 3')).toMatchObject({
+      expression: { operator: { value: '-' } },
+    });
+  });
+
+  test('disables the minus operator while keeping negative literals', () => {
+    const parser = new Parser({ features: { minusOperator: false } });
+
+    expect(() => parser.parse('1 - 2')).toThrow(
+      'Unexpected token - at position 2',
+    );
+    expect(() => parser.parse('1 - -2')).toThrow(
+      'Unexpected token - at position 2',
+    );
+    expect(() => parser.parse('- 2')).toThrow(
+      'Unexpected token - at position 0',
+    );
+    expect(parser.parse('-2')).toMatchObject({
+      expression: { type: 'NumericLiteral', rawValue: '-2', value: '-2' },
+    });
+    expect(parser.parse('-.5 * 2')).toMatchObject({
+      expression: {
+        type: 'BinaryExpression',
+        operator: { value: '*' },
+        left: { type: 'NumericLiteral', rawValue: '-.5' },
+      },
+    });
+  });
+
+  test('disables the times operator independently', () => {
+    const parser = new Parser({ features: { timesOperator: false } });
+
+    expect(() => parser.parse('1 * 2')).toThrow(
+      'Unexpected token * at position 2',
+    );
+    expect(parser.parse('1 + 2 / 3')).toMatchObject({
+      expression: { operator: { value: '+' } },
+    });
+  });
+
+  test('disables the div operator independently', () => {
+    const parser = new Parser({ features: { divOperator: false } });
+
+    expect(() => parser.parse('1 / 2')).toThrow(
+      'Unexpected token / at position 2',
+    );
+    expect(parser.parse('1 * 2 + 3')).toMatchObject({
+      expression: { operator: { value: '+' } },
+    });
+  });
+
+  test('a custom operator still matches when the built-in is disabled', () => {
+    const parser = new Parser({ features: { plusOperator: false } });
+    parser.addBinaryOperator('+', 1);
+
+    expect(parser.parse('1 + 2 * 3')).toMatchObject({
+      expression: {
+        operator: { value: '+' },
+        right: { operator: { value: '*' } },
       },
     });
   });

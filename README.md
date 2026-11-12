@@ -96,10 +96,24 @@ new Parser().parse('1 +');
 
 Create a parser instance. The same instance can parse multiple expressions sequentially.
 
-- `identifierPrefixChars?: string[]` allows extra prefixes consisting of a single non-whitespace character. For example, `new Parser({ identifierPrefixChars: ['@'] })` parses `@name` as an identifier whose name includes `@`. The prefix must be followed immediately by a valid identifier. Existing tokens and registered operators keep their matching priority.
-- `features?: { number?: boolean; string?: boolean; call?: boolean }` controls support for numeric literals, string literals, and function calls. Each feature is enabled by default. Set a feature to `false` to reject that syntax. Grouping parentheses remain available when `call` is disabled.
-- `binaryOperators?: Record<string, { precedence: number }>` registers binary operators at construction. Keys are operator labels; each value sets the precedence. The [custom operator rules](#custom-operator-rules) apply, and `parser.addBinaryOperator()` can still update them afterwards.
-- `unaryOperators?: Record<string, { precedence: number }>` registers prefix unary operators at construction, with the same rules as `binaryOperators`.
+| Option                  | Type                                     | Default     | Description                                                                                                                                                                                                                                                                                                                   |
+| ----------------------- | ---------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `identifierPrefixChars` | `string[]`                               | `[]`        | Extra identifier prefixes, each a single non-whitespace character. For example, `new Parser({ identifierPrefixChars: ['@'] })` parses `@name` as an identifier whose name includes `@`. The prefix must be followed immediately by a valid identifier. Existing tokens and registered operators keep their matching priority. |
+| `features`              | `Features`                               | all enabled | Toggles for the supported syntax. See the features table below.                                                                                                                                                                                                                                                               |
+| `binaryOperators`       | `Record<string, { precedence: number }>` | `{}`        | Binary operators registered at construction. Keys are operator labels; each value sets the precedence. The [custom operator rules](#custom-operator-rules) apply, and `parser.addBinaryOperator()` can still update them afterwards.                                                                                          |
+| `unaryOperators`        | `Record<string, { precedence: number }>` | `{}`        | Prefix unary operators registered at construction, with the same rules as `binaryOperators`.                                                                                                                                                                                                                                  |
+
+All features are enabled by default; set one to `false` to reject that syntax.
+
+| Feature         | Description                                                                                  |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| `number`        | Numeric literals. Negative literals such as `-2` are rejected as well.                       |
+| `string`        | String literals.                                                                             |
+| `call`          | Function calls. Grouping parentheses remain available when disabled.                         |
+| `plusOperator`  | Built-in binary operator `+`.                                                                |
+| `minusOperator` | Built-in binary operator `-`. Negative literals such as `-2` remain available when disabled. |
+| `timesOperator` | Built-in binary operator `*`.                                                                |
+| `divOperator`   | Built-in binary operator `/`.                                                                |
 
 #### `parser.parse(expression: string): RootNode | null`
 

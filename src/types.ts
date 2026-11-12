@@ -9,9 +9,20 @@ export interface ParserOptions {
   messages?: Messages;
   /** 支持的语法，每项默认启用 */
   features?: {
+    /** 数字字面量，关闭后 `-2` 等负数字面量也不可用 */
     number?: boolean;
+    /** 字符串字面量 */
     string?: boolean;
+    /** 函数调用，关闭后括号仍可用于分组 */
     call?: boolean;
+    /** 内置二元运算符 `+` */
+    plusOperator?: boolean;
+    /** 内置二元运算符 `-`，关闭后 `-2` 等负数字面量仍可用 */
+    minusOperator?: boolean;
+    /** 内置二元运算符 `*` */
+    timesOperator?: boolean;
+    /** 内置二元运算符 `/` */
+    divOperator?: boolean;
   };
   /** 自定义二元运算符，键为运算符文本，示例: `{ '%': { precedence: 14 } }` */
   binaryOperators?: Record<string, { precedence: number }>;

@@ -65,6 +65,10 @@ export class Parser {
         number: features?.number !== false,
         string: features?.string !== false,
         call: features?.call !== false,
+        plusOperator: features?.plusOperator !== false,
+        minusOperator: features?.minusOperator !== false,
+        timesOperator: features?.timesOperator !== false,
+        divOperator: features?.divOperator !== false,
       },
       binaryOperators: binaryOperators ?? {},
       unaryOperators: unaryOperators ?? {},
@@ -567,9 +571,15 @@ export class Parser {
         this.pos++;
         return this.finishToken(tt.parenR, ')');
       case 42: // `*`
+        if (!this.options.features.timesOperator) {
+          this.unexpected('*');
+        }
         this.pos++;
         return this.finishToken(tt.times, '*');
       case 43: // `+`
+        if (!this.options.features.plusOperator) {
+          this.unexpected('+');
+        }
         this.pos++;
         return this.finishToken(tt.plus, '+');
       case 44: // `,`
@@ -580,8 +590,14 @@ export class Parser {
         if (this.allowPrefix && isNumericStart(this.codeAt(this.pos))) {
           return this.readNumeric();
         }
+        if (!this.options.features.minusOperator) {
+          this.unexpected('-');
+        }
         return this.finishToken(tt.minus, '-');
       case 47: // `/`
+        if (!this.options.features.divOperator) {
+          this.unexpected('/');
+        }
         this.pos++;
         return this.finishToken(tt.div, '/');
       default:
