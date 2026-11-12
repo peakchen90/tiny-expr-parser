@@ -10,8 +10,10 @@ import type {
   NumericLiteral,
   StringLiteral,
   Identifier,
+  TokenType,
+  ParserOptions,
 } from './types';
-import { TokenType, tokenTypes as tt } from './token-type';
+import { tokenTypes as tt } from './token-type';
 import {
   isNumericStart,
   isNumericChar,
@@ -37,6 +39,8 @@ export class Parser {
   private lastTokenStart = 0; // 上一个 Token 的开始位置
   private lastTokenEnd = 0; // 上一个 Token 的结束位置
   private allowPrefix = true;
+
+  constructor(readonly options?: ParserOptions) {}
 
   /**
    * 注册二元运算符

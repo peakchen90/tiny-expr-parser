@@ -1,33 +1,4 @@
-import type { Parser } from './parser';
-
-export type TokenTypeUpdateContext = (
-  parser: Parser,
-  prevType: TokenType,
-) => { allowPrefix?: boolean };
-
-export interface TokenType {
-  /**
-   * Token label
-   */
-  readonly label: string;
-  /**
-   * 是否为二元运算符
-   */
-  readonly isBinary: boolean;
-  /**
-   * 是否可以作为前缀（一元运算符，仅支持运算符在左侧）
-   */
-  readonly isPrefix: boolean;
-  /**
-   * 运算符优先级
-   * @see https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
-   */
-  readonly precedence: number;
-  /**
-   * 读取 Token 时更新上下文
-   */
-  readonly updateContext?: TokenTypeUpdateContext;
-}
+import type { TokenType, TokenTypeUpdateContext } from './types';
 
 export const tokenTypes = {
   start: _tokenType('start'),
