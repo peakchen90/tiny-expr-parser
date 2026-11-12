@@ -728,11 +728,15 @@ export class Parser {
    * @param start
    */
   private unexpected(token?: string, start = this.tokenStart): never {
-    const end = token === undefined ? this.tokenEnd : undefined;
-    token ??=
-      this.tokenType === tt.string
-        ? this.input.slice(this.tokenStart, this.tokenEnd)
-        : this.tokenText;
+    let end: number | undefined;
+    if (token === undefined) {
+      end = this.tokenEnd;
+      if (this.tokenType === tt.string) {
+        token = this.input.slice(this.tokenStart, this.tokenEnd);
+      } else {
+        token = this.tokenText;
+      }
+    }
     this.raise(start, 'unexpectedToken', end, token);
   }
 
