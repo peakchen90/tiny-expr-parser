@@ -74,6 +74,16 @@ describe('Parser Special Case', () => {
 });
 
 describe('Parser Features', () => {
+  test('fills in omitted parser options at construction', () => {
+    const parser = new Parser({ features: { call: false } });
+
+    expect(parser.options).toEqual({
+      identifierPrefixChars: [],
+      messages: Parser.Messages.en,
+      features: { number: true, string: true, call: false },
+    });
+  });
+
   test('disables number literals independently', () => {
     const parser = new Parser({
       features: { number: false },

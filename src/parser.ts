@@ -36,6 +36,11 @@ export class Parser {
   /** 内置的中英文语法错误提示 */
   static readonly Messages = { zh: zhCNMessages, en: enMessages } as const;
 
+  /** 应用默认值后的解析配置 */
+  readonly options: Required<ParserOptions> & {
+    features: Required<NonNullable<ParserOptions['features']>>;
+  };
+
   private readonly operators: TokenType[] = [];
   private input = ''; // 输入的解析字符串
   private pos = 0; // 当前位置
@@ -47,9 +52,21 @@ export class Parser {
   private lastTokenEnd = 0; // 上一个 Token 的结束位置
   private allowPrefix = true;
 
-  constructor(readonly options?: ParserOptions) {
+  constructor(options?: ParserOptions) {
+    const features = options?.features;
+    const messages = options?.messages;
+    this.options = {
+      identifierPrefixChars: options?.identifierPrefixChars ?? [],
+      messages: messages ?? Parser.Messages.en,
+      features: {
+        number: features?.number !== false,
+        string: features?.string !== false,
+        call: features?.call !== false,
+      },
+    };
+
     if (
-      options?.identifierPrefixChars?.some(
+      this.options.identifierPrefixChars.some(
         (char) =>
           typeof char !== 'string' ||
           [...char].length !== 1 ||
@@ -61,7 +78,6 @@ export class Parser {
       );
     }
 
-    const messages = options?.messages;
     if (messages !== undefined) {
       for (const key of Object.keys(Parser.Messages.en) as (keyof Messages)[]) {
         if (typeof messages?.[key] !== 'string') {
@@ -216,7 +232,7 @@ export class Parser {
         type: 'Identifier',
         name: value,
       });
-      if (this.options?.features?.call === false || !this.eat(tt.parenL)) {
+      if (!this.options.features.call || !this.eat(tt.parenL)) {
         return identifier;
       }
 
@@ -271,14 +287,14 @@ export class Parser {
   private readToken(): void {
     const code = this.codeAt(this.pos);
     if (isNumericStart(code)) {
-      return this.options?.features?.number === false
-        ? this.unexpected(this.input[this.pos])
-        : this.readNumeric();
+      return this.options.features.number
+        ? this.readNumeric()
+        : this.unexpected(this.input[this.pos]);
     }
     if (code === 34 || code === 39) {
-      return this.options?.features?.string === false
-        ? this.unexpected(this.input[this.pos])
-        : this.readString(code);
+      return this.options.features.string
+        ? this.readString(code)
+        : this.unexpected(this.input[this.pos]);
     }
     return this.readTokenFromCode();
   }
@@ -457,7 +473,7 @@ export class Parser {
     }
 
     const char = this.input.slice(this.pos, this.pos + (code > 0xffff ? 2 : 1));
-    if (this.options?.identifierPrefixChars?.includes(char)) {
+    if (this.options.identifierPrefixChars.includes(char)) {
       // 自定义前缀后必须紧跟一个合法的标识符首字符或 Unicode 转义
       this.pos += char.length;
       const nextCode = this.input.codePointAt(this.pos) ?? -1;
@@ -621,7 +637,7 @@ export class Parser {
       value = undefined;
     }
 
-    const template = (this.options?.messages ?? Parser.Messages.en)[key];
+    const template = this.options.messages[key];
     throw new SyntaxError(
       template.replace(MESSAGE_PLACEHOLDER_PATTERN, (placeholder) => {
         if (placeholder === '{pos}') return String(pos);
