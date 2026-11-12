@@ -97,6 +97,10 @@ Create a parser instance. The same instance can parse multiple expressions seque
 
 Parse an expression and return its AST. Returns `null` for an empty / whitespace-only string. Throws `SyntaxError` on invalid input.
 
+#### `parser.stringify(node: Node): string`
+
+Convert any AST node to expression text. Binary operators and call arguments use consistent spacing, with parentheses added to preserve grouping. Numeric and string literals retain their `rawValue`.
+
 #### Parse error messages
 
 Pass a complete `Messages` object in `ParserOptions.messages` to configure `parse()` error messages. The built-in presets are `Parser.Messages.zh` and `Parser.Messages.en`. The parser uses English when `messages` is omitted.

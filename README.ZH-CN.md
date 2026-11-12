@@ -97,6 +97,10 @@ new Parser().parse('1 + +');
 
 解析表达式并返回 AST。空字符串（或纯空白字符）返回 `null`。非法输入抛出 `SyntaxError`。
 
+#### `parser.stringify(node: Node): string`
+
+将任意 AST 节点转换为表达式文本。二元运算和函数参数使用统一的空格格式，括号用于保留运算分组。数字和字符串字面量保留 `rawValue`。
+
 #### 解析错误提示
 
 通过 `ParserOptions.messages` 配置 `parse()` 的错误提示。传入时必须提供完整的 `Messages`，省略时使用英文。内置语言包可通过 `Parser.Messages.zh` 和 `Parser.Messages.en` 获取。

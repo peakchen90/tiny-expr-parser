@@ -65,11 +65,55 @@ describe('Parser Special Case', () => {
     });
   });
 
-  test('parses a long chain of same-precedence binary operators', () => {
+  test('parses and stringifies a long chain of same-precedence binary operators', () => {
+    const parser = new Parser();
     const input = `1${'+1'.repeat(20_000)}`;
-    const ast = new Parser().parse(input);
-    expect(ast?.expression.type).toBe('BinaryExpression');
-    expect(ast?.expression.end).toBe(input.length);
+    const ast = parser.parse(input)!;
+    expect(ast.expression.type).toBe('BinaryExpression');
+    expect(ast.expression.end).toBe(input.length);
+    expect(parser.stringify(ast)).toBe(`1${' + 1'.repeat(20_000)}`);
+  });
+});
+
+describe('Parser Stringify', () => {
+  test.each([
+    ['1+2*3', '1 + 2 * 3'],
+    ['(1+2)*3', '(1 + 2) * 3'],
+    ['1-(2-3)', '1 - (2 - 3)'],
+    ['(a+b)*c/d', '(a + b) * c / d'],
+    ['-(a+b)', '-(a + b)'],
+    [
+      String.raw`f(g(),1_000,'a\n',变量)`,
+      String.raw`f(g(), 1_000, 'a\n', 变量)`,
+    ],
+  ])('stringifies `%s`', (input, expected) => {
+    const parser = new Parser();
+    const ast = parser.parse(input)!;
+
+    expect(parser.stringify(ast)).toBe(expected);
+    expect(parser.stringify(ast.expression)).toBe(expected);
+  });
+
+  test('stringifies a standalone operator node', () => {
+    expect(
+      new Parser().stringify({
+        type: 'ExpressionOperator',
+        value: '+',
+        start: 2,
+        end: 3,
+      }),
+    ).toBe('+');
+  });
+
+  test('preserves grouping and token boundaries for custom operators', () => {
+    const parser = new Parser();
+    parser.addBinaryOperator('**', 17);
+    parser.addUnaryOperator('low', 0);
+    parser.addUnaryOperator('-a', 16);
+
+    expect(parser.stringify(parser.parse('(a+b)**c')!)).toBe('(a + b) ** c');
+    expect(parser.stringify(parser.parse('(low a)+b')!)).toBe('(low a) + b');
+    expect(parser.stringify(parser.parse('- a')!)).toBe('- a');
   });
 });
 

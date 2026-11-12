@@ -130,6 +130,110 @@ export class Parser {
     return this.finishNode(node, { type: 'Expression', expression });
   }
 
+  /** 将 AST 节点转换为表达式文本，保留字面量的原始写法 */
+  stringify(node: Node): string {
+    switch (node.type) {
+      case 'Expression':
+        return this.stringify(node.expression);
+      case 'NumericLiteral':
+      case 'StringLiteral':
+        return node.rawValue;
+      case 'Identifier':
+        return node.name;
+      case 'ExpressionOperator':
+        return node.value;
+      case 'CallExpression':
+        return `${this.stringify(node.callee)}(${node.arguments.map((arg) => this.stringify(arg)).join(', ')})`;
+      case 'UnaryExpression': {
+        const operator = this.stringify(node.operator);
+        const argument = this.stringify(node.argument);
+        if (node.argument.type === 'BinaryExpression') {
+          return `${operator}(${argument})`;
+        }
+
+        // 避免相邻字符被识别为一个更长的自定义运算符
+        const text = operator + argument;
+        if (
+          (operator === '+' || operator === '-') &&
+          node.argument.type !== 'UnaryExpression' &&
+          !this.operators.some(
+            (token) =>
+              token.isPrefix &&
+              token.label.length > operator.length &&
+              text.startsWith(token.label),
+          )
+        ) {
+          return text;
+        }
+        return `${operator} ${argument}`;
+      }
+      case 'BinaryExpression': {
+        const suffix: string[] = [];
+        let binary = node;
+        let prefix = '';
+
+        // 沿左侧运算链迭代，避免长二元链耗尽调用栈
+        while (true) {
+          const { left, operator, right } = binary;
+          const precedence = this.getBinaryPrecedence(operator.value);
+          const rightText = this.stringify(right);
+          const rightPrecedence =
+            right.type === 'BinaryExpression'
+              ? this.getBinaryPrecedence(right.operator.value)
+              : undefined;
+          const wrapRight =
+            right.type === 'UnaryExpression' ||
+            (right.type === 'BinaryExpression' &&
+              (precedence === undefined ||
+                rightPrecedence === undefined ||
+                rightPrecedence <= precedence));
+          suffix.push(
+            ` ${this.stringify(operator)} ${wrapRight ? `(${rightText})` : rightText}`,
+          );
+
+          if (left.type !== 'BinaryExpression') {
+            const leftText = this.stringify(left);
+            suffix.push(
+              left.type === 'UnaryExpression' ? `(${leftText})` : leftText,
+            );
+            return prefix + suffix.reverse().join('');
+          }
+
+          const leftPrecedence = this.getBinaryPrecedence(left.operator.value);
+          if (
+            left.operator.value !== operator.value &&
+            (precedence === undefined ||
+              leftPrecedence === undefined ||
+              leftPrecedence < precedence)
+          ) {
+            prefix += '(';
+            suffix.push(')');
+          }
+          binary = left;
+        }
+      }
+    }
+  }
+
+  /** 获取当前实例的二元运算符优先级，注册定义优先 */
+  private getBinaryPrecedence(value: string): number | undefined {
+    const operator = this.operators.find(
+      (token) => token.isBinary && token.label === value,
+    );
+    if (operator) return operator.precedence;
+
+    switch (value) {
+      case '+':
+        return tt.plus.precedence;
+      case '-':
+        return tt.minus.precedence;
+      case '*':
+        return tt.times.precedence;
+      case '/':
+        return tt.div.precedence;
+    }
+  }
+
   /**
    * 解析一个表达式原子（最小单元的表达式）, 如: `1 + 2`、`(1 + 2 + 3)`、`-1` 都作为一个表达式原子解析
    * @param leftStartPos 左侧开始位置
