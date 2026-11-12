@@ -1,0 +1,71 @@
+{
+  "name": "decimal-eval",
+  "description": "A tiny JavaScript parser for decimal arithmetic expressions.",
+  "version": "0.1.1",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "scripts": {
+    "start": "rolldown --config rolldown.config.mjs --watch",
+    "build": "rolldown --config rolldown.config.mjs",
+    "test": "vitest run",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check"
+  },
+  "keywords": [
+    "decimal",
+    "mathjs",
+    "math",
+    "parser",
+    "js",
+    "javascript"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "homepage": "https://github.com/peakchen90/decimal-eval#readme",
+  "bugs": {
+    "url": "https://github.com/peakchen90/decimal-eval/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:peakchen90/decimal-eval.git"
+  },
+  "author": "peakchen90 <1558267774@qq.com>",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "git add"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.0.5",
+    "eslint": "10.13.0",
+    "eslint-config-prettier": "10.1.8",
+    "husky": "^4.3.8",
+    "lint-staged": "^10.5.4",
+    "prettier": "3.9.10",
+    "rolldown": "1.2.14",
+    "rolldown-plugin-dts": "0.28.8",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0",
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
+  }
+}

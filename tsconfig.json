@@ -1,0 +1,19 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "module": "esnext",
+    "target": "esnext",
+    "outDir": "dist",
+    "lib": ["esnext"],
+    "jsx": "preserve",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "noImplicitAny": false,
+    "strict": true,
+    "sourceMap": false,
+    "removeComments": false,
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}
