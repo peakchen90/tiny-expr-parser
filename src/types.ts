@@ -2,7 +2,7 @@ import type { Parser } from './parser';
 
 export interface ParserOptions {
   /**
-   * 额外支持的标识符前缀字符，必须为单字符，示例: "@"、"~"
+   * 额外支持的标识符前缀字符，必须为单个非空白字符，示例: "@"、"~"
    */
   identifierPrefixChars?: string[];
 }

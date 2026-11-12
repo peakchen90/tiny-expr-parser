@@ -90,7 +90,7 @@ new Parser().parse('1 + +');
 
 Create a parser instance. The same instance can parse multiple expressions sequentially.
 
-- `identifierPrefixChars?: string[]` allows extra single-character prefixes before identifiers. For example, `new Parser({ identifierPrefixChars: ['@'] })` parses `@name` as an identifier whose name includes `@`. The prefix must be followed immediately by a valid identifier. Existing tokens and registered operators keep their matching priority.
+- `identifierPrefixChars?: string[]` allows extra prefixes consisting of a single non-whitespace character. For example, `new Parser({ identifierPrefixChars: ['@'] })` parses `@name` as an identifier whose name includes `@`. The prefix must be followed immediately by a valid identifier. Existing tokens and registered operators keep their matching priority.
 
 #### `parser.parse(expression: string): RootNode | null`
 

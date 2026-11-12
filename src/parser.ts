@@ -44,10 +44,15 @@ export class Parser {
   constructor(readonly options?: ParserOptions) {
     if (
       options?.identifierPrefixChars?.some(
-        (char) => typeof char !== 'string' || char.length !== 1,
+        (char) =>
+          typeof char !== 'string' ||
+          char.length !== 1 ||
+          WHITESPACE_PATTERN.test(char),
       )
     ) {
-      throw new TypeError('Each identifier prefix must be a single character');
+      throw new TypeError(
+        'Each identifier prefix must be a single non-whitespace character',
+      );
     }
   }
 

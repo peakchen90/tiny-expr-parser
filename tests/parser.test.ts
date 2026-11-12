@@ -178,11 +178,14 @@ describe('Identifier Prefix Characters', () => {
     });
   });
 
-  test.each(['', '@@'])('rejects invalid prefix option `%s`', (prefix) => {
-    expect(() => new Parser({ identifierPrefixChars: [prefix] })).toThrow(
-      'Each identifier prefix must be a single character',
-    );
-  });
+  test.each(['', '@@', ' ', '\t', '\n', '\u00a0', '\u3000'])(
+    'rejects invalid prefix option `%j`',
+    (prefix) => {
+      expect(() => new Parser({ identifierPrefixChars: [prefix] })).toThrow(
+        'Each identifier prefix must be a single non-whitespace character',
+      );
+    },
+  );
 });
 
 describe('String Literal', () => {
