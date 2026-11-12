@@ -41,7 +41,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:peakchen90/tiny-expr-parser.git"
+    "url": "git+https://github.com/peakchen90/tiny-expr-parser.git"
   },
   "author": "peakchen90 <1558267774@qq.com>",
   "license": "MIT",
