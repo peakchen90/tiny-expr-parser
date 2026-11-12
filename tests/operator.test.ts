@@ -151,6 +151,22 @@ describe('Binary Operator', () => {
     });
   });
 
+  test('custom binary operator `-` keeps negative literals in operands', () => {
+    const parser = new Parser();
+    parser.addBinaryOperator('-', 13);
+    const ast = parser.parse('1 - -2');
+
+    expect(ast).toMatchObject({
+      expression: {
+        type: 'BinaryExpression',
+        operator: { value: '-', start: 2, end: 3 },
+        left: { type: 'NumericLiteral', rawValue: '1', start: 0, end: 1 },
+        right: { type: 'NumericLiteral', rawValue: '-2', start: 4, end: 6 },
+      },
+    });
+    expect(parser.stringify(ast!)).toBe('1 - -2');
+  });
+
   test.each(['(', ')', ')+', '+(', ',', '+,', "'+", '+"'])(
     'cannot use reserved characters in operator `%s`',
     (operator) => {
