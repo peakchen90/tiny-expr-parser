@@ -220,14 +220,14 @@ interface Identifier {
 | `... - ...` | 13     |
 | `... * ...` | 14     |
 | `... / ...` | 14     |
-| `+ ...`     | 16     |
-| `- ...`     | 16     |
 
 优先级参考 [MDN 运算符优先级表](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Operator_Precedence)。
 
 ### 数字语法
 
-解析器接受 `123`、`.5`、`1.5`、`1_000`、`1e3`、`1.2e-3`。`_` 分隔符会在 `NumericLiteral.value` 中移除，但在 `rawValue` 中保留。
+解析器接受 `123`、`.5`、`1.5`、`1_000`、`1e3`、`1.2e-3`，以及 `-2`、`-.5` 等负数字面量。在操作数位置，紧贴数字的负号属于数字本身，例如 `1--2` 的右操作数是 `-2`。`_` 分隔符会在 `NumericLiteral.value` 中移除，但在 `rawValue` 中保留。
+
+前缀一元 `+` 和 `-` 可通过 `addUnaryOperator` 注册。已注册的运算符优先匹配。
 
 ### 字符串和函数调用
 

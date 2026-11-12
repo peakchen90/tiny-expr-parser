@@ -19,8 +19,6 @@ export const tokenTypes = {
   minus: _tokenType('-', { isBinary: true, precedence: 13 }),
   times: _tokenType('*', { isBinary: true, precedence: 14 }),
   div: _tokenType('/', { isBinary: true, precedence: 14 }),
-  prefixPlus: _tokenType('+', { isPrefix: true, precedence: 16 }),
-  prefixMinus: _tokenType('-', { isPrefix: true, precedence: 16 }),
 } as const;
 
 function _tokenType(

@@ -43,13 +43,11 @@ describe('Binary Operator', () => {
         type: 'BinaryExpression',
         operator: { type: 'ExpressionOperator', value: '🧮', start: 3, end: 5 },
         right: {
-          type: 'UnaryExpression',
-          operator: {
-            type: 'ExpressionOperator',
-            value: '-',
-            start: 6,
-            end: 7,
-          },
+          type: 'NumericLiteral',
+          rawValue: '-2',
+          value: '-2',
+          start: 6,
+          end: 8,
         },
       },
     });
@@ -58,8 +56,9 @@ describe('Binary Operator', () => {
   test('accepts a prefix operand after a higher-precedence binary operator', () => {
     const parser = new Parser();
     parser.addBinaryOperator('**', 17);
+    parser.addUnaryOperator('-', 16);
 
-    expect(parser.parse('2 ** -3 * 4')).toMatchObject({
+    expect(parser.parse('2 ** - 3 * 4')).toMatchObject({
       expression: {
         operator: { value: '*' },
         left: {

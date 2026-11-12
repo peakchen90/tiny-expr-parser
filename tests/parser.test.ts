@@ -49,6 +49,7 @@ describe('Parser Special Case', () => {
   test('can parse again after a syntax error on the same instance', () => {
     const parser = new Parser();
     parser.addBinaryOperator('%', 14);
+    parser.addUnaryOperator('-', 16);
 
     expect(() => parser.parse('1 2')).toThrow(SyntaxError);
     expect(parser.parse('-(2%3)')).toMatchObject({
@@ -81,7 +82,7 @@ describe('Parser Stringify', () => {
     ['(1+2)*3', '(1 + 2) * 3'],
     ['1-(2-3)', '1 - (2 - 3)'],
     ['(a+b)*c/d', '(a + b) * c / d'],
-    ['-(a+b)', '-(a + b)'],
+    ['1--2', '1 - -2'],
     [
       String.raw`f(g(),1_000,'a\n',变量)`,
       String.raw`f(g(), 1_000, 'a\n', 变量)`,
@@ -110,10 +111,12 @@ describe('Parser Stringify', () => {
     parser.addBinaryOperator('**', 17);
     parser.addUnaryOperator('low', 0);
     parser.addUnaryOperator('-a', 16);
+    parser.addUnaryOperator('-', 16);
 
     expect(parser.stringify(parser.parse('(a+b)**c')!)).toBe('(a + b) ** c');
     expect(parser.stringify(parser.parse('(low a)+b')!)).toBe('(low a) + b');
     expect(parser.stringify(parser.parse('- a')!)).toBe('- a');
+    expect(parser.stringify(parser.parse('-(a+b)')!)).toBe('-(a + b)');
   });
 });
 
@@ -138,6 +141,9 @@ describe('Parser Features', () => {
     );
     expect(() => parser.parse('.5')).toThrow(
       'Unexpected token . at position 0',
+    );
+    expect(() => parser.parse('f(-2)')).toThrow(
+      'Unexpected token - at position 2',
     );
     expect(parser.parse('f("text")')).toMatchObject({
       expression: {
@@ -187,6 +193,7 @@ describe('Parser Features', () => {
     const parser = new Parser({
       features: { number: false, string: false, call: false },
     });
+    parser.addUnaryOperator('-', 16);
 
     expect(parser.parse('-(a + b)')).toMatchObject({
       expression: {
@@ -365,14 +372,17 @@ describe('String Literal', () => {
 
 describe('Call Expression', () => {
   test('binds calls before unary and binary operators and parses nested arguments', () => {
-    expect(new Parser().parse('1 + -f(g(), -2 * 3) * 4')).toMatchObject({
+    const parser = new Parser();
+    parser.addUnaryOperator('abs', 16);
+
+    expect(parser.parse('1 + abs f(g(), -2 * 3) * 4')).toMatchObject({
       expression: {
         operator: { value: '+' },
         right: {
           operator: { value: '*' },
           left: {
             type: 'UnaryExpression',
-            operator: { value: '-' },
+            operator: { value: 'abs' },
             argument: {
               type: 'CallExpression',
               callee: { name: 'f' },
@@ -385,9 +395,8 @@ describe('Call Expression', () => {
                 {
                   operator: { value: '*' },
                   left: {
-                    type: 'UnaryExpression',
-                    operator: { value: '-' },
-                    argument: { value: '2' },
+                    type: 'NumericLiteral',
+                    value: '-2',
                   },
                   right: { value: '3' },
                 },
@@ -471,6 +480,7 @@ describe('Parser Error Capture', () => {
     ['1__2', 'Unexpected token _ at position 2'],
     ['1_', 'Unexpected token _ at position 1'],
     ['.', 'Unexpected token . at position 0'],
+    ['-.', 'Unexpected token . at position 1'],
   ])('rejects malformed numeric literal `%s`', (input, message) => {
     expect(() => new Parser().parse(input)).toThrow(
       expect.objectContaining({ constructor: SyntaxError, message }),
@@ -500,10 +510,14 @@ describe('Parser Error Capture', () => {
     }).toThrow('Unexpected end of input');
   });
 
-  test('unexpected token when read numeric with prefix', () => {
-    expect(() => {
-      new Parser().parse('1++)+1');
-    }).toThrow('Unexpected token ) at position 3');
+  test.each([
+    ['+1', 'Unexpected token + at position 0'],
+    ['-x', 'Unexpected token - at position 0'],
+    ['-(1)', 'Unexpected token - at position 0'],
+    ['- 1', 'Unexpected token - at position 0'],
+    ['1++2', 'Unexpected token + at position 2'],
+  ])('rejects unregistered prefix operator in `%s`', (input, message) => {
+    expect(() => new Parser().parse(input)).toThrow(message);
   });
 
   test('unexpected token: extra `)`', () => {

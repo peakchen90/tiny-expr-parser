@@ -288,7 +288,7 @@ export class Parser {
   }
 
   /**
-   * 解析可能带前缀的表达式，如: `+1`, `-(2)`, `3`, `-(3 + 4)`, `+-+5`
+   * 解析字面量、标识符、函数调用或已注册的前缀运算符
    */
   private parseMaybeUnary(): ExpressionNode {
     const precedence = this.tokenType.precedence;
@@ -296,7 +296,6 @@ export class Parser {
     const start = this.tokenStart;
     const value = this.tokenText;
 
-    // Note: `1 ++ 1` 会当作 `1 + (+1)` 对待，与 JS 会作为 `1++` 对待不同
     if (this.tokenType.isPrefix) {
       const operator = this.parseOperator();
       // 前缀运算符自身的优先级决定其操作数的范围
@@ -407,7 +406,6 @@ export class Parser {
    * 读取一个数字
    */
   private readNumeric(): void {
-    const chunkStart = this.pos;
     let countE = -1; // 统计字符 `e` 出现次数，-1 表示当前位置不允许出现 `e`
     let allowDot = true;
     let allowUnderline = false;
@@ -456,7 +454,7 @@ export class Parser {
         allowDot = false;
         allowUnderline = false;
         this.pos++;
-        if (this.pos - chunkStart === 1) {
+        if (countE === -1) {
           expectANumber = true;
         }
       } else if (code === 95) {
@@ -481,7 +479,7 @@ export class Parser {
       this.unexpected(this.input[unexpectedPos], unexpectedPos);
     }
 
-    const value = this.input.slice(chunkStart, this.pos);
+    const value = this.input.slice(this.tokenStart, this.pos);
     this.finishToken(tt.numeric, value);
   }
 
@@ -554,17 +552,16 @@ export class Parser {
         return this.finishToken(tt.times, '*');
       case 43: // `+`
         this.pos++;
-        if (this.allowPrefix) {
-          return this.finishToken(tt.prefixPlus, '+');
-        }
         return this.finishToken(tt.plus, '+');
       case 44: // `,`
         this.pos++;
         return this.finishToken(tt.comma, ',');
       case 45: // `-`
         this.pos++;
-        if (this.allowPrefix) {
-          return this.finishToken(tt.prefixMinus, '-');
+        if (this.allowPrefix && isNumericStart(this.codeAt(this.pos))) {
+          return this.options.features.number
+            ? this.readNumeric()
+            : this.unexpected('-');
         }
         return this.finishToken(tt.minus, '-');
       case 47: // `/`

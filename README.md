@@ -220,14 +220,14 @@ interface Identifier {
 | `... - ...` | 13         |
 | `... * ...` | 14         |
 | `... / ...` | 14         |
-| `+ ...`     | 16         |
-| `- ...`     | 16         |
 
 Precedence follows the [MDN operator precedence table](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_precedence).
 
 ### Number syntax
 
-The parser accepts `123`, `.5`, `1.5`, `1_000`, `1e3`, `1.2e-3`. The `_` separator is stripped in `NumericLiteral.value` but preserved in `rawValue`.
+The parser accepts `123`, `.5`, `1.5`, `1_000`, `1e3`, `1.2e-3`, and negative literals such as `-2` and `-.5`. In operand position, an adjacent minus sign is part of the number, as in `1--2`. The `_` separator is stripped in `NumericLiteral.value` but preserved in `rawValue`.
+
+Register `+` or `-` with `addUnaryOperator` to use it as a prefix operator. Registered operators take precedence over built-in token matching.
 
 ### Strings and calls
 
