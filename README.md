@@ -1,24 +1,19 @@
 # tiny-expr-parser
 
-A tiny, zero-dependency parser for arithmetic expressions. It parses a string like `1 + 2 * (3 - a)` into an AST — it never evaluates, so you stay in control of how numbers and variables are resolved.
+A tiny, zero-dependency expression parser library. It parses a string like `1 + 2 * (3 - a)` into an AST.
 
 [![CI](https://github.com/peakchen90/tiny-expr-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/peakchen90/tiny-expr-parser/actions/workflows/ci.yml)
 [![Codecov](https://img.shields.io/codecov/c/github/peakchen90/tiny-expr-parser.svg)](https://codecov.io/gh/peakchen90/tiny-expr-parser)
 [![npm](https://img.shields.io/npm/v/tiny-expr-parser.svg)](https://www.npmjs.com/package/tiny-expr-parser)
-[![bundle size](https://badgen.net/bundlephobia/minzip/tiny-expr-parser)](https://bundlephobia.com/result?p=tiny-expr-parser)
 [![license](https://img.shields.io/github/license/peakchen90/tiny-expr-parser.svg)](./LICENSE)
 
 English | [简体中文](./README.ZH-CN.md)
 
 ## Features
 
-- **Zero dependencies** — ships tree-shakeable ESM, CommonJS and UMD builds
-- **Parser only, no evaluation** — you decide how to interpret the AST
-- **Precision-safe numbers** — numeric literals are kept as raw strings, so no floating point precision is lost (supports `1_000`, `.5`, `1.2e-3`)
-- **Position-aware AST** — every node carries `start` / `end` offsets in the source string
-- **Custom operators** — register your own unary / binary operators with explicit precedence
-- **Identifiers** — use variables like `a + b` as placeholders and resolve them yourself
-- **Helpful errors** — invalid input throws a `SyntaxError` with the offending position
+- Zero dependencies, ships ESM / CommonJS / UMD builds
+- Supports custom unary / binary operators and identifiers
+- Invalid input throws a `SyntaxError` with the offending position
 
 Requires Node.js >= 24 to develop and build; the published package runs in Node.js and modern browsers.
 
@@ -71,8 +66,6 @@ The returned AST is a plain JSON-serializable object:
 }
 ```
 
-Since `tiny-expr-parser` does not evaluate anything, `NumericLiteral.value` is intentionally a string. Use your preferred decimal library (e.g. `decimal.js`) or `Number` to convert it.
-
 Custom operators are registered per parser instance. See [precedence of built-in operators](#precedence-of-built-in-operators) when choosing a precedence.
 
 ```js
@@ -101,7 +94,7 @@ Create a parser instance. The same instance can parse multiple expressions seque
 
 #### `parser.parse(expression: string): RootNode | null`
 
-Parse an arithmetic expression and return its AST. Returns `null` for an empty / whitespace-only string. Throws `SyntaxError` on invalid input.
+Parse an expression and return its AST. Returns `null` for an empty / whitespace-only string. Throws `SyntaxError` on invalid input.
 
 #### `parser.addBinaryOperator(value: string, precedence: number): void`
 
@@ -119,13 +112,49 @@ The current package version.
 
 Every node contains `start` and `end`: the offsets of the source string it covers (inclusive start, exclusive end).
 
-| Node               | Fields                           | Description                                  |
-| ------------------ | -------------------------------- | -------------------------------------------- |
-| `Expression`       | `expression`                     | The root node                                |
-| `BinaryExpression` | `left`, `right`, `operator`      | e.g. `1 + 2`                                 |
-| `UnaryExpression`  | `argument`, `operator`, `prefix` | Prefix operators, e.g. `-1`, `sin 2`         |
-| `NumericLiteral`   | `rawValue`, `value`              | `value` is `rawValue` without `_` separators |
-| `Identifier`       | `name`                           | Variable placeholder, e.g. `a`               |
+```ts
+interface RootNode {
+  type: 'Expression';
+  start: number;
+  end: number;
+  expression: ExpressionNode;
+}
+
+type ExpressionNode = BinaryExpression | UnaryExpression | NumericLiteral | Identifier;
+
+interface BinaryExpression {
+  type: 'BinaryExpression';
+  start: number;
+  end: number;
+  left: ExpressionNode;
+  right: ExpressionNode;
+  operator: string; // e.g. '+', '-', '*', '/'
+}
+
+interface UnaryExpression {
+  type: 'UnaryExpression';
+  start: number;
+  end: number;
+  argument: ExpressionNode;
+  operator: string; // e.g. '-', 'sin'
+  prefix: boolean; // always true
+}
+
+interface NumericLiteral {
+  type: 'NumericLiteral';
+  start: number;
+  end: number;
+  rawValue: string; // the literal as it appears in the source
+  value: string; // `rawValue` without `_` separators
+}
+
+interface Identifier {
+  type: 'Identifier';
+  start: number;
+  end: number;
+  name: string;
+}
+```
 
 ## Advanced
 

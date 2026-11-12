@@ -1,24 +1,19 @@
 # tiny-expr-parser
 
-一个零依赖的算术表达式解析库。它把 `1 + 2 * (3 - a)` 这样的字符串解析成 AST —— 不做任何求值，数字和变量的解释方式完全由你掌控。
+一个小型零依赖的表达式解析库。支持将 `1 + 2 * (3 - a)` 这样的字符串解析成 AST。
 
 [![CI](https://github.com/peakchen90/tiny-expr-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/peakchen90/tiny-expr-parser/actions/workflows/ci.yml)
 [![Codecov](https://img.shields.io/codecov/c/github/peakchen90/tiny-expr-parser.svg)](https://codecov.io/gh/peakchen90/tiny-expr-parser)
 [![npm](https://img.shields.io/npm/v/tiny-expr-parser.svg)](https://www.npmjs.com/package/tiny-expr-parser)
-[![bundle size](https://badgen.net/bundlephobia/minzip/tiny-expr-parser)](https://bundlephobia.com/result?p=tiny-expr-parser)
 [![license](https://img.shields.io/github/license/peakchen90/tiny-expr-parser.svg)](./LICENSE)
 
 [English](./README.md) | 简体中文
 
 ## 特性
 
-- **零依赖** —— 提供 ESM、CommonJS 和 UMD 三种构建产物，支持 tree-shaking
-- **只解析、不求值** —— AST 如何解释由你决定
-- **数字精度安全** —— 数字字面量以原始字符串保留，不会丢失浮点精度（支持 `1_000`、`.5`、`1.2e-3`）
-- **位置信息完整** —— 每个节点都带有源字符串中的 `start` / `end` 偏移量
-- **自定义运算符** —— 按实例注册一元 / 二元运算符，并显式指定优先级
-- **标识符支持** —— `a + b` 这类变量占位符由你自行解析
-- **错误信息友好** —— 非法输入抛出携带位置信息的 `SyntaxError`
+- 零依赖，提供 ESM / CommonJS / UMD 构建
+- 支持自定义一元 / 二元运算符和标识符
+- 非法输入抛出携带位置信息的 `SyntaxError`
 
 开发和构建要求 Node.js >= 24；发布产物可运行于 Node.js 与现代浏览器。
 
@@ -71,8 +66,6 @@ const ast = parser.parse('1 + 2 * a');
 }
 ```
 
-由于 `tiny-expr-parser` 不做求值，`NumericLiteral.value` 刻意保持为字符串。可以用你偏好的十进制库（如 `decimal.js`）或 `Number` 来转换。
-
 自定义运算符按解析器实例注册。设置优先级时可参考[内置运算符的优先级](#内置运算符优先级)。
 
 ```js
@@ -119,13 +112,49 @@ new Parser().parse('1 + +');
 
 每个节点都包含 `start` 和 `end`：节点覆盖的源字符串偏移量（start 含首、end 不含尾）。
 
-| 节点               | 字段                             | 描述                                     |
-| ------------------ | -------------------------------- | ---------------------------------------- |
-| `Expression`       | `expression`                     | 根节点                                   |
-| `BinaryExpression` | `left`、`right`、`operator`      | 如 `1 + 2`                               |
-| `UnaryExpression`  | `argument`、`operator`、`prefix` | 前缀运算符，如 `-1`、`sin 2`             |
-| `NumericLiteral`   | `rawValue`、`value`              | `value` 是去掉 `_` 分隔符后的 `rawValue` |
-| `Identifier`       | `name`                           | 变量占位符，如 `a`                       |
+```ts
+interface RootNode {
+  type: 'Expression';
+  start: number;
+  end: number;
+  expression: ExpressionNode;
+}
+
+type ExpressionNode = BinaryExpression | UnaryExpression | NumericLiteral | Identifier;
+
+interface BinaryExpression {
+  type: 'BinaryExpression';
+  start: number;
+  end: number;
+  left: ExpressionNode;
+  right: ExpressionNode;
+  operator: string; // 如 '+'、'-'、'*'、'/'
+}
+
+interface UnaryExpression {
+  type: 'UnaryExpression';
+  start: number;
+  end: number;
+  argument: ExpressionNode;
+  operator: string; // 如 '-'、'sin'
+  prefix: boolean; // 恒为 true
+}
+
+interface NumericLiteral {
+  type: 'NumericLiteral';
+  start: number;
+  end: number;
+  rawValue: string; // 源字符串中的原始字面量
+  value: string; // 去掉 `_` 分隔符后的 `rawValue`
+}
+
+interface Identifier {
+  type: 'Identifier';
+  start: number;
+  end: number;
+  name: string;
+}
+```
 
 ## 进阶
 
