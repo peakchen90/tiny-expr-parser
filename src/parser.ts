@@ -13,7 +13,9 @@ import type {
   Identifier,
   TokenType,
   ParserOptions,
+  Messages,
 } from './types';
+import { enMessages, zhCNMessages } from './messages';
 import { tokenTypes as tt } from './token-type';
 import {
   isNumericStart,
@@ -22,6 +24,7 @@ import {
   isIdentifierStart,
   getRealNumeric,
   WHITESPACE_PATTERN,
+  MESSAGE_PLACEHOLDER_PATTERN,
   IDENTIFIER_ESCAPE_PATTERN,
   STRING_ESCAPES,
 } from './util';
@@ -30,6 +33,9 @@ import {
  * Expression Parser
  */
 export class Parser {
+  /** 内置的中英文语法错误提示 */
+  static readonly Messages = { zh: zhCNMessages, en: enMessages } as const;
+
   private readonly operators: TokenType[] = [];
   private input = ''; // 输入的解析字符串
   private pos = 0; // 当前位置
@@ -46,13 +52,22 @@ export class Parser {
       options?.identifierPrefixChars?.some(
         (char) =>
           typeof char !== 'string' ||
-          char.length !== 1 ||
+          [...char].length !== 1 ||
           WHITESPACE_PATTERN.test(char),
       )
     ) {
       throw new TypeError(
         'Each identifier prefix must be a single non-whitespace character',
       );
+    }
+
+    const messages = options?.messages;
+    if (messages !== undefined) {
+      for (const key of Object.keys(Parser.Messages.en) as (keyof Messages)[]) {
+        if (typeof messages?.[key] !== 'string') {
+          throw new TypeError(`Missing or invalid parser message: ${key}`);
+        }
+      }
     }
   }
 
@@ -362,7 +377,7 @@ export class Parser {
         return this.finishToken(tt.string, value);
       }
       if (code === 10 || code === 13) {
-        this.raise(this.pos, 'Unterminated string literal');
+        this.raise(this.pos, 'unterminatedStringLiteral');
       }
       if (code === 92) {
         // 只在遇到转义时截取前面的原文
@@ -372,7 +387,7 @@ export class Parser {
 
         const escaped = STRING_ESCAPES[this.input[this.pos]];
         if (escaped === undefined) {
-          this.raise(this.pos, 'Invalid string escape');
+          this.raise(this.pos, 'invalidStringEscape');
         }
         value += escaped;
         chunkStart = this.pos + 1;
@@ -380,7 +395,7 @@ export class Parser {
       this.pos++;
     }
 
-    this.raise(this.tokenStart, 'Unterminated string literal');
+    this.raise(this.tokenStart, 'unterminatedStringLiteral');
   }
 
   /**
@@ -463,7 +478,7 @@ export class Parser {
         IDENTIFIER_ESCAPE_PATTERN.lastIndex = this.pos;
         const match = IDENTIFIER_ESCAPE_PATTERN.exec(this.input);
         if (!match) {
-          this.raise(this.pos, 'Invalid Unicode escape in identifier');
+          this.raise(this.pos, 'invalidIdentifierEscape');
         }
 
         // 转义后的码点也必须满足当前位置的标识符规则
@@ -474,7 +489,7 @@ export class Parser {
             ? isIdentifierStart(escapedCode)
             : isIdentifierChar(escapedCode))
         ) {
-          this.raise(this.pos, 'Invalid Unicode escape in identifier');
+          this.raise(this.pos, 'invalidIdentifierEscape');
         }
         value +=
           this.input.slice(chunkStart, this.pos) +
@@ -587,21 +602,28 @@ export class Parser {
       this.tokenType === tt.string
         ? this.input.slice(this.tokenStart, this.tokenEnd)
         : this.tokenText;
-    this.raise(pos ?? this.tokenStart, `Unexpected token ${token}`);
+    this.raise(pos ?? this.tokenStart, 'unexpectedToken', token);
   }
 
   /**
-   * 抛出异常
+   * 用当前语言的提示模板抛出语法错误
    * @param pos
-   * @param message
+   * @param key
+   * @param value
    */
-  private raise(pos: number, message: string): never {
-    if (pos > this.input.length - 1) {
-      message = 'Unexpected end of input';
-    } else {
-      message += ` at position ${pos}`;
+  private raise(pos: number, key: keyof Messages, value?: string): never {
+    if (pos >= this.input.length) {
+      key = 'unexpectedEndOfInput';
+      value = undefined;
     }
-    throw new SyntaxError(message);
+
+    const template = (this.options?.messages ?? Parser.Messages.en)[key];
+    throw new SyntaxError(
+      template.replace(MESSAGE_PLACEHOLDER_PATTERN, (placeholder) => {
+        if (placeholder === '{pos}') return String(pos);
+        return value ?? placeholder;
+      }),
+    );
   }
 
   private addOperator(

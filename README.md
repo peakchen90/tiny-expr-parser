@@ -96,6 +96,26 @@ Create a parser instance. The same instance can parse multiple expressions seque
 
 Parse an expression and return its AST. Returns `null` for an empty / whitespace-only string. Throws `SyntaxError` on invalid input.
 
+#### Parse error messages
+
+Pass a complete `Messages` object in `ParserOptions.messages` to configure `parse()` error messages. The built-in presets are `Parser.Messages.zh` and `Parser.Messages.en`. The parser uses English when `messages` is omitted.
+
+```js
+import { Parser } from 'tiny-expr-parser';
+
+const parser = new Parser({ messages: Parser.Messages.zh });
+```
+
+`{v}` is the offending token text. `{pos}` is the zero-based UTF-16 offset in the input, or the input length for an unexpected end.
+
+| `Messages` key              | Scenario                                                                                          | Placeholders   |
+| --------------------------- | ------------------------------------------------------------------------------------------------- | -------------- |
+| `unexpectedToken`           | Unknown character, malformed number, or unexpected token such as a misplaced comma or parenthesis | `{v}`, `{pos}` |
+| `unexpectedEndOfInput`      | Input ends while an operand or closing parenthesis is required                                    | `{pos}`        |
+| `unterminatedStringLiteral` | String reaches the end of input or an unescaped line break without a closing quote                | `{pos}`        |
+| `invalidStringEscape`       | Unsupported escape in a string literal                                                            | `{pos}`        |
+| `invalidIdentifierEscape`   | Malformed Unicode escape or a decoded character invalid at that identifier position               | `{pos}`        |
+
 #### `parser.addBinaryOperator(value: string, precedence: number): void`
 
 Register a binary operator on this instance, or replace the precedence of an existing one.

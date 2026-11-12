@@ -5,6 +5,22 @@ export interface ParserOptions {
    * 额外支持的标识符前缀字符，必须为单个非空白字符，示例: "@"、"~"
    */
   identifierPrefixChars?: string[];
+  /** 自定义整套解析错误提示，省略时使用英文 */
+  messages?: Messages;
+}
+
+/** `parse()` 抛出的语法错误提示模板 */
+export interface Messages {
+  /** 意外的 token，{v} 为报错文本，{pos} 为位置 */
+  unexpectedToken: string;
+  /** 输入提前结束，{pos} 为输入末尾的位置 */
+  unexpectedEndOfInput: string;
+  /** 字符串未闭合，{pos} 为报错位置 */
+  unterminatedStringLiteral: string;
+  /** 字符串转义无效，{pos} 为报错位置 */
+  invalidStringEscape: string;
+  /** 标识符 Unicode 转义无效，{pos} 为报错位置 */
+  invalidIdentifierEscape: string;
 }
 
 export type Node = RootNode | ExpressionNode | ExpressionOperator;

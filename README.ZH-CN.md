@@ -96,6 +96,26 @@ new Parser().parse('1 + +');
 
 解析表达式并返回 AST。空字符串（或纯空白字符）返回 `null`。非法输入抛出 `SyntaxError`。
 
+#### 解析错误提示
+
+通过 `ParserOptions.messages` 配置 `parse()` 的错误提示。传入时必须提供完整的 `Messages`，省略时使用英文。内置语言包可通过 `Parser.Messages.zh` 和 `Parser.Messages.en` 获取。
+
+```js
+import { Parser } from 'tiny-expr-parser';
+
+const parser = new Parser({ messages: Parser.Messages.zh });
+```
+
+`{v}` 是触发错误的 token 文本。`{pos}` 是从 0 开始的 UTF-16 偏移量，输入提前结束时取输入长度。
+
+| `Messages` 键               | 场景                                                        | 占位符         |
+| --------------------------- | ----------------------------------------------------------- | -------------- |
+| `unexpectedToken`           | 未知字符、非法数字，或逗号、括号等 token 出现在不允许的位置 | `{v}`、`{pos}` |
+| `unexpectedEndOfInput`      | 输入结束时仍缺操作数或右括号                                | `{pos}`        |
+| `unterminatedStringLiteral` | 字符串遇到输入末尾或未转义的换行，且引号尚未闭合            | `{pos}`        |
+| `invalidStringEscape`       | 字符串使用了不支持的转义                                    | `{pos}`        |
+| `invalidIdentifierEscape`   | 标识符 Unicode 转义格式无效，或解码字符不允许出现在当前位置 | `{pos}`        |
+
 #### `parser.addBinaryOperator(value: string, precedence: number): void`
 
 为当前实例注册二元运算符，或替换已有运算符的优先级。

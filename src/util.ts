@@ -2,6 +2,7 @@ const IDENTIFIER_START_PATTERN = /^\p{ID_Start}$/u;
 const IDENTIFIER_CONTINUE_PATTERN = /^[\p{ID_Continue}\u200C\u200D]$/u;
 
 export const WHITESPACE_PATTERN = /\s/;
+export const MESSAGE_PLACEHOLDER_PATTERN = /\{(?:v|pos)\}/g;
 export const IDENTIFIER_ESCAPE_PATTERN =
   /\\u(?:([0-9a-fA-F]{4})|\{([0-9a-fA-F]+)\})/y;
 export const STRING_ESCAPES: Record<string, string | undefined> = {

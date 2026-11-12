@@ -289,6 +289,50 @@ describe('Call Expression', () => {
   });
 });
 
+describe('Parser Messages', () => {
+  test.each([
+    ['1^2', '位置 1 处出现意外的标记 ^'],
+    ['1+', '表达式意外结束'],
+    ['"abc', '字符串未闭合（位置 0）'],
+    [String.raw`'\q'`, '无效的字符串转义（位置 2）'],
+    [String.raw`\u0030名`, '标识符中的 Unicode 转义无效（位置 0）'],
+  ])('uses the Chinese message for `%s`', (input, message) => {
+    const parser = new Parser({ messages: Parser.Messages.zh });
+
+    expect(() => parser.parse(input)).toThrow(
+      expect.objectContaining({ constructor: SyntaxError, message }),
+    );
+  });
+
+  test('formats placeholders in a complete custom message set', () => {
+    const parser = new Parser({
+      messages: {
+        ...Parser.Messages.en,
+        unexpectedToken: '{pos} => {v} | {v}',
+        unexpectedEndOfInput: 'End of input at {pos}',
+      },
+    });
+
+    expect(() => parser.parse("1 '{pos}$&'")).toThrow(
+      "2 => '{pos}$&' | '{pos}$&'",
+    );
+    expect(() => parser.parse('1+ ')).toThrow('End of input at 3');
+    expect(() => parser.parse(String.raw`'\q'`)).toThrow(
+      'Invalid string escape at position 2',
+    );
+  });
+
+  test('rejects an incomplete message set at construction', () => {
+    expect(
+      () =>
+        new Parser({
+          // @ts-expect-error Deliberately pass an incomplete message set.
+          messages: { unexpectedToken: '{v}' },
+        }),
+    ).toThrow('Missing or invalid parser message: unexpectedEndOfInput');
+  });
+});
+
 describe('Parser Error Capture', () => {
   test.each([
     ['1e', 'Unexpected token e at position 1'],
