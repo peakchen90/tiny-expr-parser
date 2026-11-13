@@ -162,8 +162,13 @@ export class Parser {
         return node.name;
       case 'ExpressionOperator':
         return node.value;
-      case 'CallExpression':
-        return `${this.stringify(node.callee)}(${node.arguments.map((arg) => this.stringify(arg)).join(', ')})`;
+      case 'CallExpression': {
+        const callee = this.stringify(node.callee);
+        const args = node.arguments
+          .map((argument) => this.stringify(argument))
+          .join(', ');
+        return `${callee}(${args})`;
+      }
       case 'UnaryExpression': {
         const operator = this.stringify(node.operator);
         const argument = this.stringify(node.argument);
@@ -173,7 +178,7 @@ export class Parser {
 
         // 避免相邻字符被识别为一个更长的自定义运算符
         const text = operator + argument;
-        if (
+        const canOmitSpace =
           (operator === '+' || operator === '-') &&
           node.argument.type !== 'UnaryExpression' &&
           !this.operators.some(
@@ -181,20 +186,18 @@ export class Parser {
               token.isPrefix &&
               token.label.length > operator.length &&
               text.startsWith(token.label),
-          )
-        ) {
-          return text;
-        }
-        return `${operator} ${argument}`;
+          );
+
+        return canOmitSpace ? text : `${operator} ${argument}`;
       }
       case 'BinaryExpression': {
-        const suffix: string[] = [];
-        let binary = node;
+        const segments: string[] = [];
+        let current = node;
         let prefix = '';
 
         // 沿左侧运算链迭代，避免长二元链耗尽调用栈
         while (true) {
-          const { left, operator, right } = binary;
+          const { left, operator, right } = current;
           const precedence = this.getBinaryPrecedence(operator.value);
           const rightText = this.stringify(right);
           const rightPrecedence =
@@ -207,16 +210,16 @@ export class Parser {
               (precedence === undefined ||
                 rightPrecedence === undefined ||
                 rightPrecedence <= precedence));
-          suffix.push(
+          segments.push(
             ` ${this.stringify(operator)} ${wrapRight ? `(${rightText})` : rightText}`,
           );
 
           if (left.type !== 'BinaryExpression') {
             const leftText = this.stringify(left);
-            suffix.push(
+            segments.push(
               left.type === 'UnaryExpression' ? `(${leftText})` : leftText,
             );
-            return prefix + suffix.reverse().join('');
+            return prefix + segments.reverse().join('');
           }
 
           const leftPrecedence = this.getBinaryPrecedence(left.operator.value);
@@ -227,9 +230,9 @@ export class Parser {
               leftPrecedence < precedence)
           ) {
             prefix += '(';
-            suffix.push(')');
+            segments.push(')');
           }
-          binary = left;
+          current = left;
         }
       }
     }
