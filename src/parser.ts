@@ -14,6 +14,8 @@ import type {
   TokenType,
   ParserOptions,
   Messages,
+  WalkOptions,
+  WalkVisitors,
 } from './types';
 import { enMessages, zhCNMessages } from './messages';
 import { ParserError } from './parser-error';
@@ -234,6 +236,70 @@ export class Parser {
           }
           current = left;
         }
+      }
+    }
+  }
+
+  /**
+   * 以深度优先的前序遍历节点，子节点按源码顺序访问
+   * @param node 起始节点
+   * @param visitors 节点回调，ancestors 按从根节点到直接父节点的顺序排列
+   */
+  walk(node: Node, visitors: WalkVisitors): void {
+    const stack: { node: Node; exiting: boolean }[] = [
+      { node, exiting: false },
+    ];
+    const ancestors: Node[] = [];
+
+    while (stack.length > 0) {
+      const { node: current, exiting } = stack.pop()!;
+      if (exiting) {
+        ancestors.pop();
+        continue;
+      }
+
+      const visitor = visitors[current.type] as
+        | ((node: Node, ancestors: Node[], options: WalkOptions) => void)
+        | undefined;
+      if (visitor) {
+        let skipped = false;
+        let stopped = false;
+        visitor(current, [...ancestors], {
+          skip() {
+            skipped = true;
+          },
+          stop() {
+            stopped = true;
+          },
+        });
+        if (stopped) return;
+        if (skipped) continue;
+      }
+
+      // 子节点处理完毕后，通过退出标记恢复祖先列表
+      stack.push({ node: current, exiting: true });
+      ancestors.push(current);
+
+      // 子节点逆序入栈，使出栈后的访问顺序与源码一致
+      switch (current.type) {
+        case 'Expression':
+          stack.push({ node: current.expression, exiting: false });
+          break;
+        case 'CallExpression':
+          for (let i = current.arguments.length - 1; i >= 0; i--) {
+            stack.push({ node: current.arguments[i], exiting: false });
+          }
+          stack.push({ node: current.callee, exiting: false });
+          break;
+        case 'UnaryExpression':
+          stack.push({ node: current.argument, exiting: false });
+          stack.push({ node: current.operator, exiting: false });
+          break;
+        case 'BinaryExpression':
+          stack.push({ node: current.right, exiting: false });
+          stack.push({ node: current.operator, exiting: false });
+          stack.push({ node: current.left, exiting: false });
+          break;
       }
     }
   }

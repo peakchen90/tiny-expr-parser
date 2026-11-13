@@ -123,6 +123,32 @@ new Parser().parse('1 +');
 
 将任意 AST 节点转换为表达式文本。二元运算和函数参数使用统一的空格格式，括号用于保留运算分组。数字和字符串字面量保留 `rawValue`。
 
+#### `parser.walk(node: Node, visitors: WalkVisitors): void`
+
+以深度优先前序迭代遍历 AST，不使用递归函数。每个回调接收当前节点 `node`、祖先列表 `ancestors` 和控制对象 `options`。调用 `options.skip()` 可跳过当前节点的所有子节点，并继续遍历当前子树之外的后续节点；调用 `options.stop()` 可立即终止整个遍历。
+
+`ancestors` 按从起始节点到当前节点直接父节点的顺序排列，不包含当前节点；起始节点的祖先列表为 `[]`。包括 `ExpressionOperator` 在内的所有节点都会遍历，子节点按源码顺序访问。各类回调均可省略，省略某个节点的回调不会跳过其子树。TypeScript 会自动推导每个回调的具体节点类型。
+
+```js
+const ast = parser.parse('a + 2 * b');
+
+parser.walk(ast, {
+  Expression(node, ancestors) {
+    console.log(ancestors); // []
+  },
+  BinaryExpression(node, ancestors, options) {
+    if (node.operator.value === '*') {
+      options.skip(); // 跳过当前子树，包括 b
+    }
+  },
+  Identifier(node, ancestors) {
+    console.log(node.name); // 'a'
+    console.log(ancestors.map((ancestor) => ancestor.type));
+    // ['Expression', 'BinaryExpression']
+  },
+});
+```
+
 #### 解析错误提示
 
 通过 `ParserOptions.messages` 配置 `parse()` 的错误提示。传入时必须提供完整的 `Messages`，省略时使用英文。内置语言包可通过 `Parser.Messages.zh` 和 `Parser.Messages.en` 获取。

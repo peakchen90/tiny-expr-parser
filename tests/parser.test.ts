@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { Parser, ParserError } from '../src';
+import { Parser, ParserError, type Node } from '../src';
 import { astFixtures } from './fixtures/ast';
 
 describe('Parser Fixtures', () => {
@@ -117,6 +117,166 @@ describe('Parser Stringify', () => {
     expect(parser.stringify(parser.parse('(low a)+b')!)).toBe('(low a) + b');
     expect(parser.stringify(parser.parse('- a')!)).toBe('- a');
     expect(parser.stringify(parser.parse('-(a+b)')!)).toBe('-(a + b)');
+  });
+});
+
+describe('Parser Walk', () => {
+  test('walks nodes depth-first with root-to-parent ancestors', () => {
+    const parser = new Parser();
+    parser.addUnaryOperator('-', 16);
+    const ast = parser.parse(`f(-a, 'x', 1 + 2 * 3)`)!;
+    const visited: string[] = [];
+    let unaryAncestors: Node[] | undefined;
+
+    parser.walk(ast, {
+      Expression(node, ancestors) {
+        visited.push(node.type);
+        expect(ancestors).toEqual([]);
+      },
+      CallExpression(node) {
+        visited.push(node.type);
+      },
+      UnaryExpression(node, ancestors) {
+        visited.push(node.type);
+        unaryAncestors = ancestors;
+      },
+      BinaryExpression(node) {
+        visited.push(`${node.type}:${node.operator.value}`);
+      },
+      ExpressionOperator(node) {
+        visited.push(`${node.type}:${node.value}`);
+      },
+      Identifier(node) {
+        visited.push(`${node.type}:${node.name}`);
+      },
+      StringLiteral(node) {
+        visited.push(`${node.type}:${node.value}`);
+      },
+      NumericLiteral(node, ancestors) {
+        visited.push(`${node.type}:${node.rawValue}`);
+        if (node.rawValue === '3') {
+          expect(ancestors.map((ancestor) => ancestor.type)).toEqual([
+            'Expression',
+            'CallExpression',
+            'BinaryExpression',
+            'BinaryExpression',
+          ]);
+        }
+      },
+    });
+
+    expect(visited).toEqual([
+      'Expression',
+      'CallExpression',
+      'Identifier:f',
+      'UnaryExpression',
+      'ExpressionOperator:-',
+      'Identifier:a',
+      'StringLiteral:x',
+      'BinaryExpression:+',
+      'NumericLiteral:1',
+      'ExpressionOperator:+',
+      'BinaryExpression:*',
+      'NumericLiteral:2',
+      'ExpressionOperator:*',
+      'NumericLiteral:3',
+    ]);
+    expect(unaryAncestors).toEqual([ast, ast.expression]);
+  });
+
+  test('uses the supplied subtree as the ancestor root', () => {
+    const parser = new Parser();
+    const ast = parser.parse('1 + 2')!;
+
+    parser.walk(ast.expression, {
+      BinaryExpression(node, ancestors) {
+        expect(ancestors).toEqual([]);
+        expect(node).toBe(ast.expression);
+      },
+      NumericLiteral(node, ancestors) {
+        expect(ancestors).toEqual([ast.expression]);
+      },
+    });
+  });
+
+  test('continues through nodes without visitor callbacks', () => {
+    const parser = new Parser();
+    const ast = parser.parse('1 + 2')!;
+    const visited: string[] = [];
+
+    parser.walk(ast, {
+      NumericLiteral(node) {
+        visited.push(node.rawValue);
+      },
+    });
+
+    expect(visited).toEqual(['1', '2']);
+  });
+
+  test('skips only the current node children', () => {
+    const parser = new Parser();
+    const ast = parser.parse('f(a + b, c)')!;
+    const visited: string[] = [];
+
+    parser.walk(ast, {
+      BinaryExpression(node, ancestors, options) {
+        visited.push(`${node.type}:${node.operator.value}`);
+        expect(ancestors.map((ancestor) => ancestor.type)).toEqual([
+          'Expression',
+          'CallExpression',
+        ]);
+        options.skip();
+      },
+      ExpressionOperator(node) {
+        visited.push(`${node.type}:${node.value}`);
+      },
+      Identifier(node, ancestors) {
+        visited.push(`${node.type}:${node.name}`);
+        if (node.name === 'c') {
+          expect(ancestors.map((ancestor) => ancestor.type)).toEqual([
+            'Expression',
+            'CallExpression',
+          ]);
+        }
+      },
+    });
+
+    expect(visited).toEqual([
+      'Identifier:f',
+      'BinaryExpression:+',
+      'Identifier:c',
+    ]);
+  });
+
+  test('stops the entire traversal immediately', () => {
+    const parser = new Parser();
+    const ast = parser.parse('f(a, b, c)')!;
+    const visited: string[] = [];
+
+    parser.walk(ast, {
+      Identifier(node, ancestors, options) {
+        visited.push(node.name);
+        if (node.name === 'b') {
+          options.stop();
+        }
+      },
+    });
+
+    expect(visited).toEqual(['f', 'a', 'b']);
+  });
+
+  test('walks a deeply nested tree without recursive calls', () => {
+    const parser = new Parser();
+    const ast = parser.parse(`1${'+1'.repeat(20_000)}`)!;
+    let rootVisited = false;
+
+    parser.walk(ast, {
+      Expression() {
+        rootVisited = true;
+      },
+    });
+
+    expect(rootVisited).toBe(true);
   });
 });
 

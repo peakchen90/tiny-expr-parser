@@ -46,6 +46,23 @@ export interface Messages {
 
 export type Node = RootNode | ExpressionNode | ExpressionOperator;
 
+/** `walk()` 回调提供的遍历控制方法 */
+export interface WalkOptions {
+  /** 跳过当前节点的所有子节点，继续遍历当前子树之外的后续节点 */
+  skip(): void;
+  /** 立即终止整个遍历 */
+  stop(): void;
+}
+
+/** `walk()` 的节点回调，ancestors 按从根节点到直接父节点的顺序排列 */
+export type WalkVisitors = {
+  [T in Node['type']]?: (
+    node: Extract<Node, { type: T }>,
+    ancestors: Node[],
+    options: WalkOptions,
+  ) => void;
+};
+
 export type ExpressionNode =
   | BinaryExpression
   | UnaryExpression

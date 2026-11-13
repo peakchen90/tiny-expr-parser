@@ -123,6 +123,32 @@ Parse an expression and return its AST. Returns `null` for an empty / whitespace
 
 Convert any AST node to expression text. Binary operators and call arguments use consistent spacing, with parentheses added to preserve grouping. Numeric and string literals retain their `rawValue`.
 
+#### `parser.walk(node: Node, visitors: WalkVisitors): void`
+
+Traverse an AST iteratively in depth-first pre-order, without recursive calls. Each visitor receives the current `node`, an `ancestors` array, and an `options` object. Call `options.skip()` to skip the current node's children and continue outside its subtree, or `options.stop()` to stop the entire traversal immediately.
+
+The `ancestors` array is ordered from the starting node to the current node's direct parent. The current node is excluded, so the starting node receives an empty array. All node types, including `ExpressionOperator`, are visited, and children follow source order. Visitor callbacks are optional; omitting a node's callback does not skip its subtree. TypeScript infers the specific node type for each callback.
+
+```js
+const ast = parser.parse('a + 2 * b');
+
+parser.walk(ast, {
+  Expression(node, ancestors) {
+    console.log(ancestors); // []
+  },
+  BinaryExpression(node, ancestors, options) {
+    if (node.operator.value === '*') {
+      options.skip(); // Skip this subtree, including `b`
+    }
+  },
+  Identifier(node, ancestors) {
+    console.log(node.name); // 'a'
+    console.log(ancestors.map((ancestor) => ancestor.type));
+    // ['Expression', 'BinaryExpression']
+  },
+});
+```
+
 #### Parse error messages
 
 Pass a complete `Messages` object in `ParserOptions.messages` to configure `parse()` error messages. The built-in presets are `Parser.Messages.zh` and `Parser.Messages.en`. The parser uses English when `messages` is omitted.
