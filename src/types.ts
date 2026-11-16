@@ -1,4 +1,5 @@
 import type { Parser } from './parser';
+import type { ParserError } from './parser-error';
 
 export interface ParserOptions {
   /**
@@ -45,6 +46,12 @@ export interface Messages {
 }
 
 export type Node = RootNode | ExpressionNode | ExpressionOperator;
+
+/** 宽松解析得到的 AST 片段和语法错误，均按源码位置排列 */
+export interface LooseParseResult {
+  nodes: Node[];
+  errors: ParserError[];
+}
 
 /** `walk()` 回调提供的遍历控制方法 */
 export interface WalkOptions {

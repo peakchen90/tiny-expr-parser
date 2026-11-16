@@ -13,6 +13,7 @@ English | [简体中文](./README.ZH-CN.md)
 
 - Tiny, zero dependencies
 - Supports custom operators
+- Supports loose parsing for live syntax highlighting and diagnostics
 
 Requires Node.js >= 24 to develop and build; the published package runs in Node.js and modern browsers.
 
@@ -119,6 +120,49 @@ All features are enabled by default; set one to `false` to reject that syntax.
 
 Parse an expression and return its AST. Returns `null` for an empty / whitespace-only string. Throws `ParserError` on invalid input.
 
+#### `parser.parseLoose(expression: string): LooseParseResult`
+
+Parse an expression while it is being edited. The parser records syntax errors and continues recognizing later nodes. Use `parse()` for strict parsing. Both methods share the instance's syntax toggles, custom operators, identifier prefixes, and error message settings.
+
+```ts
+interface LooseParseResult {
+  nodes: Node[];
+  errors: ParserError[];
+}
+```
+
+- `nodes` contains AST fragments in source order. Pass each node to `walk()`. A valid expression returns one root node with the same structure and ranges as the result of `parse()`. When a required child is missing, recognized nodes can be returned individually. For example, `a +` returns the identifier `a` and the operator `+`.
+- `errors` contains `ParserError` instances ordered by their starting offsets. Use `code` and `message` for diagnostics and `start` and `end` to locate them. Nodes and errors use zero-based UTF-16 offsets with an inclusive start and exclusive end, so you can use `input.slice(start, end)`. For an unexpected end of input, both error offsets equal `input.length`.
+- Empty or whitespace-only input returns two empty arrays. If the parser finds no recognizable nodes, as in `?`, `nodes` is empty and `errors` still reports the error.
+
+The example below distinguishes function names from ordinary identifiers and marks the error separately. Literal nodes can cover incomplete input. Use their ranges to highlight the original text. Read parentheses, commas, and whitespace from the source.
+
+```js
+import { Parser } from 'tiny-expr-parser';
+
+const input = 'sum(a, ?, b)';
+const parser = new Parser();
+const { nodes, errors } = parser.parseLoose(input);
+const highlights = [];
+
+for (const node of nodes) {
+  parser.walk(node, {
+    Identifier(identifier, ancestors) {
+      const parent = ancestors[ancestors.length - 1];
+      const isCallee = parent?.type === 'CallExpression' && parent.callee === identifier;
+      highlights.push({
+        kind: isCallee ? 'function' : 'identifier',
+        start: identifier.start,
+        end: identifier.end,
+      });
+    },
+  });
+}
+
+// highlights contains sum [0, 3), a [4, 5), and b [10, 11)
+console.log(errors.map(({ start, end }) => [start, end])); // [[7, 8]]
+```
+
 #### `parser.stringify(node: Node): string`
 
 Convert any AST node to expression text. Binary operators and call arguments use consistent spacing, with parentheses added to preserve grouping. Numeric and string literals retain their `rawValue`.
@@ -151,7 +195,7 @@ parser.walk(ast, {
 
 #### Parse error messages
 
-Pass a complete `Messages` object in `ParserOptions.messages` to configure `parse()` error messages. The built-in presets are `Parser.Messages.zh` and `Parser.Messages.en`. The parser uses English when `messages` is omitted.
+Pass a complete `Messages` object in `ParserOptions.messages` to configure error messages for `parse()` and `parseLoose()`. The built-in presets are `Parser.Messages.zh` and `Parser.Messages.en`. The parser uses English when `messages` is omitted.
 
 ```js
 import { Parser } from 'tiny-expr-parser';

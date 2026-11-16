@@ -13,6 +13,7 @@
 
 - 小型、零依赖
 - 支持自定义运算符
+- 支持宽松解析，适用于实时语法高亮和错误提示
 
 开发和构建要求 Node.js >= 24；发布产物可运行于 Node.js 与现代浏览器。
 
@@ -119,6 +120,49 @@ new Parser().parse('1 +');
 
 解析表达式并返回 AST。空字符串（或纯空白字符）返回 `null`。非法输入抛出 `ParserError`。
 
+#### `parser.parseLoose(expression: string): LooseParseResult`
+
+解析编辑中的表达式，遇到语法错误时记录错误并继续识别后续节点。严格解析使用 `parse()`。两种方法共用实例的语法开关、自定义运算符、标识符前缀和错误消息配置。
+
+```ts
+interface LooseParseResult {
+  nodes: Node[];
+  errors: ParserError[];
+}
+```
+
+- `nodes` 是按源码顺序排列的 AST 片段，可以逐个传给 `walk()`。合法表达式返回一个根节点，其结构和范围与 `parse()` 的结果一致。缺少必要子节点时，已识别的节点可以单独返回，例如 `a +` 会返回标识符 `a` 和运算符 `+`。
+- `errors` 是按起始位置排列的 `ParserError`。使用 `code` 和 `message` 展示诊断，用 `start` 和 `end` 定位。节点范围和错误范围都采用从 0 开始、含首不含尾的 UTF-16 偏移，可直接用于 `input.slice(start, end)`。输入意外结束时，两个错误偏移都等于 `input.length`。
+- 空字符串或纯空白输入返回两个空数组。如果没有可识别的节点，例如输入 `?`，`nodes` 为空，`errors` 仍包含错误。
+
+下例在编辑过程中区分函数名与普通标识符，并单独标记错误字符。字面量节点可覆盖不完整的输入，可以直接用节点范围给原文着色。括号、逗号和空白可从源码读取。
+
+```js
+import { Parser } from 'tiny-expr-parser';
+
+const input = 'sum(a, ?, b)';
+const parser = new Parser();
+const { nodes, errors } = parser.parseLoose(input);
+const highlights = [];
+
+for (const node of nodes) {
+  parser.walk(node, {
+    Identifier(identifier, ancestors) {
+      const parent = ancestors[ancestors.length - 1];
+      const isCallee = parent?.type === 'CallExpression' && parent.callee === identifier;
+      highlights.push({
+        kind: isCallee ? 'function' : 'identifier',
+        start: identifier.start,
+        end: identifier.end,
+      });
+    },
+  });
+}
+
+// highlights 包含 sum [0, 3)、a [4, 5) 和 b [10, 11)
+console.log(errors.map(({ start, end }) => [start, end])); // [[7, 8]]
+```
+
 #### `parser.stringify(node: Node): string`
 
 将任意 AST 节点转换为表达式文本。二元运算和函数参数使用统一的空格格式，括号用于保留运算分组。数字和字符串字面量保留 `rawValue`。
@@ -151,7 +195,7 @@ parser.walk(ast, {
 
 #### 解析错误提示
 
-通过 `ParserOptions.messages` 配置 `parse()` 的错误提示。传入时必须提供完整的 `Messages`，省略时使用英文。内置语言包可通过 `Parser.Messages.zh` 和 `Parser.Messages.en` 获取。
+通过 `ParserOptions.messages` 配置 `parse()` 和 `parseLoose()` 的错误提示。传入时必须提供完整的 `Messages`，省略时使用英文。内置语言包可通过 `Parser.Messages.zh` 和 `Parser.Messages.en` 获取。
 
 ```js
 import { Parser } from 'tiny-expr-parser';

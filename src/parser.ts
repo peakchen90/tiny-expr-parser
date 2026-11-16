@@ -13,6 +13,7 @@ import type {
   Identifier,
   TokenType,
   ParserOptions,
+  LooseParseResult,
   Messages,
   WalkOptions,
   WalkVisitors,
@@ -127,17 +128,7 @@ export class Parser {
    * 开始解析，如果是空字符串返回 `null`
    */
   parse(input: string): RootNode | null {
-    this.input = input;
-    this.tokenType = tt.start;
-    this.tokenText = '';
-    this.pos = 0;
-    this.tokenStart = 0;
-    this.tokenEnd = 0;
-    this.lastTokenStart = 0;
-    this.lastTokenEnd = 0;
-    this.allowPrefix = true;
-
-    this.next();
+    this.startParse(input);
     const node = this.startNode<RootNode>(this.tokenStart);
     if (this.tokenType === tt.end) {
       return null; // 空字符
@@ -150,6 +141,46 @@ export class Parser {
     }
 
     return this.finishNode(node, { type: 'Expression', expression });
+  }
+
+  /**
+   * 开始宽松解析，如果是空字符串或纯空白，返回空的节点和错误列表
+   * 遇到语法错误时记录错误并尽可能继续解析，返回已识别的节点和错误列表
+   */
+  parseLoose(input: string): LooseParseResult {
+    const result: LooseParseResult = { nodes: [], errors: [] };
+    this.startParse(input, result.errors);
+    while (this.tokenType !== tt.end) {
+      const start = this.tokenStart;
+      try {
+        const expression = this.parseExprAtom(start, -1, result);
+        this.finishNode(
+          this.startNode<RootNode>(start),
+          { type: 'Expression', expression },
+          result.nodes,
+        );
+        if (this.tokenType === tt.end) break;
+        result.errors.push(this.unexpectedError());
+      } catch (error) {
+        if (!(error instanceof ParserError)) throw error;
+        result.errors.push(error);
+      }
+
+      if (this.tokenType === tt.end) break;
+      // 运算符仍可高亮；能开始新表达式的 token 留给下一轮
+      if (this.tokenType.isBinary && !this.tokenType.isPrefix) {
+        this.parseOperator(result);
+      } else if (
+        this.tokenStart === start ||
+        this.tokenType === tt.parenR ||
+        this.tokenType === tt.comma
+      ) {
+        this.next(result.errors);
+      }
+    }
+
+    result.errors.sort((a, b) => a.start - b.start);
+    return result;
   }
 
   /** 将 AST 节点转换为表达式文本，保留字面量的原始写法 */
@@ -304,6 +335,21 @@ export class Parser {
     }
   }
 
+  /** 重置解析状态并读取首个 token */
+  private startParse(input: string, errors?: ParserError[]): void {
+    this.input = input;
+    this.tokenType = tt.start;
+    this.tokenText = '';
+    this.pos = 0;
+    this.tokenStart = 0;
+    this.tokenEnd = 0;
+    this.lastTokenStart = 0;
+    this.lastTokenEnd = 0;
+    this.allowPrefix = true;
+
+    this.next(errors);
+  }
+
   /** 获取当前实例的二元运算符优先级，注册定义优先 */
   private getBinaryPrecedence(value: string): number | undefined {
     const operator = this.operators.find(
@@ -331,16 +377,28 @@ export class Parser {
   private parseExprAtom(
     leftStartPos: number,
     minPrecedence: number,
+    looseResult?: LooseParseResult,
   ): ExpressionNode {
     if (this.tokenType === tt.parenL) {
       // 遇到 `(` 则递归解析表达式原子
-      this.next();
-      const left = this.parseExprAtom(this.tokenStart, -1);
-      this.expect(tt.parenR);
-      return this.parseMaybeBinary(left, leftStartPos, minPrecedence); // 将 `(expr)` 整体作为左值，进入优先级解析流程
+      this.next(looseResult?.errors);
+      const left = this.parseExprAtom(this.tokenStart, -1, looseResult);
+      this.expect(tt.parenR, looseResult?.errors);
+      // 将 `(expr)` 整体作为左值，进入优先级解析流程
+      return this.parseMaybeBinary(
+        left,
+        leftStartPos,
+        minPrecedence,
+        looseResult,
+      );
     } else {
-      const left = this.parseMaybeUnary();
-      return this.parseMaybeBinary(left, leftStartPos, minPrecedence);
+      const left = this.parseMaybeUnary(looseResult);
+      return this.parseMaybeBinary(
+        left,
+        leftStartPos,
+        minPrecedence,
+        looseResult,
+      );
     }
   }
 
@@ -354,6 +412,7 @@ export class Parser {
     left: ExpressionNode,
     leftStartPos: number,
     minPrecedence: number,
+    looseResult?: LooseParseResult,
   ): ExpressionNode {
     // 逐个续接左结合的二元运算符，避免同级运算链增加递归深度
     while (
@@ -362,16 +421,19 @@ export class Parser {
     ) {
       const precedence = this.tokenType.precedence;
       const node = this.startNode<BinaryExpression>(leftStartPos);
-      const operator = this.parseOperator();
+      const operator = this.parseOperator(looseResult);
 
       // 解析可能更高优先级的右侧表达式，如: `1 + 2 * 3` 将解析 `2 * 3` 作为右值
-      const right = this.parseExprAtom(this.tokenStart, precedence);
-      left = this.finishNode(node, {
-        type: 'BinaryExpression',
-        left,
-        right,
-        operator,
-      });
+      const right = this.parseExprAtom(
+        this.tokenStart,
+        precedence,
+        looseResult,
+      );
+      left = this.finishNode(
+        node,
+        { type: 'BinaryExpression', left, right, operator },
+        looseResult?.nodes,
+      );
     }
     return left;
   }
@@ -379,68 +441,90 @@ export class Parser {
   /**
    * 解析字面量、标识符、函数调用或已注册的前缀运算符
    */
-  private parseMaybeUnary(): ExpressionNode {
+  private parseMaybeUnary(looseResult?: LooseParseResult): ExpressionNode {
     const precedence = this.tokenType.precedence;
     const node = this.startNode<ExpressionNode>();
     const start = this.tokenStart;
     const value = this.tokenText;
+    const errors = looseResult?.errors;
+    const nodes = looseResult?.nodes;
 
     if (this.tokenType.isPrefix) {
-      const operator = this.parseOperator();
+      const operator = this.parseOperator(looseResult);
       // 前缀运算符自身的优先级决定其操作数的范围
-      const argument = this.parseExprAtom(this.tokenStart, precedence);
-      return this.finishNode(node as InitialPartNode<UnaryExpression>, {
-        type: 'UnaryExpression',
-        argument,
-        operator,
-        prefix: true,
-      });
+      const argument = this.parseExprAtom(
+        this.tokenStart,
+        precedence,
+        looseResult,
+      );
+      return this.finishNode(
+        node as InitialPartNode<UnaryExpression>,
+        { type: 'UnaryExpression', argument, operator, prefix: true },
+        nodes,
+      );
     }
 
     if (this.tokenType === tt.numeric) {
       const realValue = getRealNumeric(value);
       const rawValue = value;
-      this.next();
-      return this.finishNode(node as InitialPartNode<NumericLiteral>, {
-        type: 'NumericLiteral',
-        rawValue,
-        value: realValue,
-      });
+      this.next(errors);
+      return this.finishNode(
+        node as InitialPartNode<NumericLiteral>,
+        { type: 'NumericLiteral', rawValue, value: realValue },
+        nodes,
+      );
     }
 
     if (this.tokenType === tt.string) {
       const rawValue = this.input.slice(start, this.tokenEnd);
-      this.next();
-      return this.finishNode(node as InitialPartNode<StringLiteral>, {
-        type: 'StringLiteral',
-        rawValue,
-        value,
-      });
+      this.next(errors);
+      return this.finishNode(
+        node as InitialPartNode<StringLiteral>,
+        { type: 'StringLiteral', rawValue, value },
+        nodes,
+      );
     }
 
     if (this.tokenType === tt.identifier) {
-      this.next();
-      const identifier = this.finishNode(node as InitialPartNode<Identifier>, {
-        type: 'Identifier',
-        name: value,
-      });
-      if (!this.options.features.call || !this.eat(tt.parenL)) {
+      this.next(errors);
+      const identifier = this.finishNode(
+        node as InitialPartNode<Identifier>,
+        { type: 'Identifier', name: value },
+        nodes,
+      );
+      if (!this.options.features.call || !this.eat(tt.parenL, errors)) {
         return identifier;
       }
 
       // 每个参数按完整表达式解析，逗号用于分隔参数
       const args: ExpressionNode[] = [];
-      if (!this.eat(tt.parenR)) {
+      if (!this.eat(tt.parenR, errors)) {
         do {
-          args.push(this.parseExprAtom(this.tokenStart, -1));
-        } while (this.eat(tt.comma));
-        this.expect(tt.parenR);
+          if (
+            errors &&
+            (this.tokenType === tt.comma ||
+              this.tokenType === tt.parenR ||
+              this.tokenType === tt.end)
+          ) {
+            // 缺失参数时保留分隔符和之后的参数，已有词法错误的空位不重复报错
+            if (
+              this.tokenType !== tt.end &&
+              (errors.length === 0 ||
+                errors[errors.length - 1].start < this.lastTokenEnd)
+            ) {
+              errors.push(this.unexpectedError());
+            }
+          } else {
+            args.push(this.parseExprAtom(this.tokenStart, -1, looseResult));
+          }
+        } while (this.eat(tt.comma, errors));
+        this.expect(tt.parenR, errors);
       }
-      return this.finishNode(this.startNode<CallExpression>(start), {
-        type: 'CallExpression',
-        callee: identifier,
-        arguments: args,
-      });
+      return this.finishNode(
+        this.startNode<CallExpression>(start),
+        { type: 'CallExpression', callee: identifier, arguments: args },
+        nodes,
+      );
     }
 
     return this.unexpected();
@@ -449,51 +533,67 @@ export class Parser {
   /**
    * 读取运算符节点，范围只覆盖当前运算符 token
    */
-  private parseOperator(): ExpressionOperator {
+  private parseOperator(looseResult?: LooseParseResult): ExpressionOperator {
     const node = this.startNode<ExpressionOperator>();
     const value = this.tokenText;
-    this.next();
-    return this.finishNode(node, { type: 'ExpressionOperator', value });
+    this.next(looseResult?.errors);
+    return this.finishNode(
+      node,
+      { type: 'ExpressionOperator', value },
+      looseResult?.nodes,
+    );
   }
 
   /**
    * 读取并移到下一个 Token
    */
-  private next(): void {
+  private next(errors?: ParserError[]): void {
     this.lastTokenStart = this.tokenStart;
     this.lastTokenEnd = this.tokenEnd;
-    this.skipSpace();
 
-    this.tokenStart = this.pos;
-    if (this.pos >= this.input.length) {
-      if (this.tokenType === tt.end) return;
-      this.finishToken(tt.end);
-    } else {
-      this.readToken();
+    while (true) {
+      this.skipSpace();
+      this.tokenStart = this.pos;
+      if (this.pos >= this.input.length) {
+        if (this.tokenType !== tt.end) this.finishToken(tt.end);
+        return;
+      }
+
+      try {
+        return this.readToken(errors);
+      } catch (error) {
+        if (!errors || !(error instanceof ParserError)) throw error;
+        errors.push(error);
+
+        // 跳过无效字符，保证恢复时向前推进
+        if (this.pos === this.tokenStart) {
+          this.pos = error.end;
+        }
+      }
     }
   }
 
   /**
    * 读取一个 token
    */
-  private readToken(): void {
+  private readToken(errors?: ParserError[]): void {
     const code = this.codeAt(this.pos);
     if (isNumericStart(code)) {
-      return this.readNumeric();
+      return this.readNumeric(errors);
     }
     if (code === 34 || code === 39) {
       if (!this.options.features.string) {
         this.unexpected(this.input[this.pos]);
       }
-      return this.readString(code);
+      return this.readString(code, errors);
     }
-    return this.readTokenFromCode();
+    return this.readTokenFromCode(errors);
   }
 
   /**
    * 读取一个数字
    */
-  private readNumeric(): void {
+  private readNumeric(errors?: ParserError[]): void {
     if (!this.options.features.number) {
       this.unexpected(this.input[this.tokenStart]);
     }
@@ -568,7 +668,12 @@ export class Parser {
       unexpectedPos = this.pos - 1;
     }
     if (unexpectedPos >= 0) {
-      this.unexpected(this.input[unexpectedPos], unexpectedPos);
+      const error = this.unexpectedError(
+        this.input[unexpectedPos],
+        unexpectedPos,
+      );
+      if (!errors) throw error;
+      errors.push(error);
     }
 
     const value = this.input.slice(this.tokenStart, this.pos);
@@ -578,7 +683,7 @@ export class Parser {
   /**
    * 读取单引号或双引号字符串并解码转义
    */
-  private readString(quote: number): void {
+  private readString(quote: number, errors?: ParserError[]): void {
     this.pos++;
     let chunkStart = this.pos;
     let value = '';
@@ -591,31 +696,54 @@ export class Parser {
         return this.finishToken(tt.string, value);
       }
       if (code === 10 || code === 13) {
-        this.raise(this.pos, 'unterminatedStringLiteral');
+        const error = this.createError(this.pos, 'unterminatedStringLiteral');
+        if (!errors) throw error;
+        errors.push(error);
+        return this.finishToken(
+          tt.string,
+          value + this.input.slice(chunkStart, this.pos),
+        );
       }
       if (code === 92) {
         // 只在遇到转义时截取前面的原文
         value += this.input.slice(chunkStart, this.pos);
+        chunkStart = this.pos;
         this.pos++;
         if (!this.isValidPosition()) break;
 
         const escaped = STRING_ESCAPES[this.input[this.pos]];
         if (escaped === undefined) {
-          this.raise(this.pos, 'invalidStringEscape');
+          const error = this.createError(this.pos, 'invalidStringEscape');
+          if (!errors) throw error;
+          errors.push(error);
+          // 行尾的无效转义结束当前字符串，以便继续解析下一行
+          if (this.codeAt(this.pos) === 10 || this.codeAt(this.pos) === 13) {
+            return this.finishToken(
+              tt.string,
+              value + this.input.slice(chunkStart, this.pos),
+            );
+          }
         }
-        value += escaped;
+        value += escaped ?? this.input[this.pos];
         chunkStart = this.pos + 1;
       }
       this.pos++;
     }
 
-    this.raise(this.tokenStart, 'unterminatedStringLiteral', this.pos);
+    const error = this.createError(
+      this.tokenStart,
+      'unterminatedStringLiteral',
+      this.pos,
+    );
+    if (!errors) throw error;
+    errors.push(error);
+    this.finishToken(tt.string, value + this.input.slice(chunkStart, this.pos));
   }
 
   /**
    * 根据字符 code 读取一个 Token，包括自定义注册的运算符
    */
-  private readTokenFromCode(): void {
+  private readTokenFromCode(errors?: ParserError[]): void {
     const code = this.input.codePointAt(this.pos) ?? -1;
 
     // 优先解析自定义运算符
@@ -657,7 +785,7 @@ export class Parser {
       case 45: // `-`
         this.pos++;
         if (this.allowPrefix && isNumericStart(this.codeAt(this.pos))) {
-          return this.readNumeric();
+          return this.readNumeric(errors);
         }
         if (!this.options.features.minusOperator) {
           this.unexpected('-');
@@ -671,7 +799,7 @@ export class Parser {
         return this.finishToken(tt.div, '/');
       default:
         if (code === 92 || isIdentifierStart(code)) {
-          return this.readIdentifier();
+          return this.readIdentifier(errors);
         }
     }
 
@@ -681,7 +809,7 @@ export class Parser {
       this.pos += char.length;
       const nextCode = this.input.codePointAt(this.pos) ?? -1;
       if (nextCode === 92 || isIdentifierStart(nextCode)) {
-        return this.readIdentifier();
+        return this.readIdentifier(errors);
       }
     }
     this.unexpected(char);
@@ -690,7 +818,7 @@ export class Parser {
   /**
    * 按 ECMAScript IdentifierName 读取标识符并解码 Unicode 转义
    */
-  private readIdentifier(): void {
+  private readIdentifier(errors?: ParserError[]): void {
     const identifierStart = this.pos;
     let chunkStart = this.tokenStart;
     let value = '';
@@ -700,26 +828,30 @@ export class Parser {
       if (code === 92) {
         IDENTIFIER_ESCAPE_PATTERN.lastIndex = this.pos;
         const match = IDENTIFIER_ESCAPE_PATTERN.exec(this.input);
-        if (!match) {
-          this.raise(this.pos, 'invalidIdentifierEscape');
-        }
 
         // 转义后的码点也必须满足当前位置的标识符规则
-        const escapedCode = Number.parseInt(match[1] ?? match[2], 16);
+        const escapedCode = match
+          ? Number.parseInt(match[1] ?? match[2], 16)
+          : -1;
         let valid = false;
-        if (escapedCode <= 0x10ffff) {
+        if (match && escapedCode <= 0x10ffff) {
           if (this.pos === identifierStart) {
             valid = isIdentifierStart(escapedCode);
           } else {
             valid = isIdentifierChar(escapedCode);
           }
         }
-        if (!valid) {
-          this.raise(
+        if (!match || !valid) {
+          const error = this.createError(
             this.pos,
             'invalidIdentifierEscape',
-            this.pos + match[0].length,
+            match ? this.pos + match[0].length : undefined,
           );
+          if (!errors) throw error;
+          errors.push(error);
+          // 保留原文用于高亮，继续读取标识符的后续字符
+          this.pos = error.end;
+          continue;
         }
         value +=
           this.input.slice(chunkStart, this.pos) +
@@ -782,9 +914,17 @@ export class Parser {
   private finishNode<T extends Node = Node>(
     node: InitialPartNode<T>,
     info?: FinishPartNode<T>,
+    nodes?: Node[],
   ): T {
     Object.assign(node, info);
     node.end = this.lastTokenEnd;
+    if (nodes) {
+      // 父节点完成后用它替换已收集的子节点，避免 walk 重复访问
+      while (nodes.length > 0 && nodes[nodes.length - 1].start >= node.start) {
+        nodes.pop();
+      }
+      nodes.push(node as T);
+    }
     return node as T;
   }
 
@@ -801,11 +941,18 @@ export class Parser {
   }
 
   /**
-   * 消费当前指定类型的 token，否则抛出异常
+   * 消费指定类型的 token，宽松模式下允许在输入末尾补全右括号
    * @param type
    */
-  private expect(type: TokenType): void {
-    if (!this.eat(type)) {
+  private expect(type: TokenType, errors?: ParserError[]): void {
+    if (!this.eat(type, errors)) {
+      if (errors && this.tokenType === tt.end) {
+        // 嵌套分组或调用可以在同一个输入末尾结束
+        if (errors[errors.length - 1]?.code !== 'unexpectedEndOfInput') {
+          errors.push(this.unexpectedError());
+        }
+        return;
+      }
       this.unexpected();
     }
   }
@@ -814,9 +961,9 @@ export class Parser {
    * 消费一个 token，如果是指定的 token 类型，则移动到下一个 token ，返回 true，否则返回 false
    * @param type
    */
-  private eat(type: TokenType): boolean {
+  private eat(type: TokenType, errors?: ParserError[]): boolean {
     if (this.tokenType === type) {
-      this.next();
+      this.next(errors);
       return true;
     }
     return false;
@@ -828,6 +975,14 @@ export class Parser {
    * @param start
    */
   private unexpected(token?: string, start = this.tokenStart): never {
+    throw this.unexpectedError(token, start);
+  }
+
+  /** 根据当前 token 生成对应的意外 token 错误 */
+  private unexpectedError(
+    token?: string,
+    start = this.tokenStart,
+  ): ParserError {
     let end: number | undefined;
     if (token === undefined) {
       end = this.tokenEnd;
@@ -837,22 +992,22 @@ export class Parser {
         token = this.tokenText;
       }
     }
-    this.raise(start, 'unexpectedToken', end, token);
+    return this.createError(start, 'unexpectedToken', end, token);
   }
 
   /**
-   * 用当前语言的提示模板抛出语法错误
+   * 用当前语言的提示模板生成语法错误
    * @param start
    * @param code
    * @param end
    * @param value
    */
-  private raise(
+  private createError(
     start: number,
     code: keyof Messages,
     end?: number,
     value?: string,
-  ): never {
+  ): ParserError {
     if (start >= this.input.length) {
       code = 'unexpectedEndOfInput';
       start = this.input.length;
@@ -869,7 +1024,7 @@ export class Parser {
         return value ?? placeholder;
       },
     );
-    throw new ParserError(message, code, start, end);
+    return new ParserError(message, code, start, end);
   }
 
   private addOperator(
