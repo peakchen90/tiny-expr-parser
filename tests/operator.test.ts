@@ -272,6 +272,49 @@ describe('Unary Operator', () => {
 });
 
 describe('Operator Options', () => {
+  test('recognizes prefix operators after [ and binary operators after ]', () => {
+    const parser = new Parser({
+      unaryOperators: { abs: { precedence: 16 } },
+      binaryOperators: { mod: { precedence: 14 } },
+    });
+
+    expect(parser.parse('[abs -3] mod [2]')).toMatchObject({
+      expression: {
+        type: 'BinaryExpression',
+        operator: { value: 'mod' },
+        left: {
+          type: 'ArrayExpression',
+          elements: [
+            {
+              type: 'UnaryExpression',
+              operator: { value: 'abs' },
+              argument: { type: 'NumericLiteral', rawValue: '-3' },
+            },
+          ],
+        },
+        right: { type: 'ArrayExpression' },
+      },
+    });
+  });
+
+  test('preserves existing operator and identifier prefix matches with brackets', () => {
+    const parser = new Parser({
+      identifierPrefixChars: ['['],
+      binaryOperators: { '[at]': { precedence: 16 } },
+    });
+
+    expect(parser.parse('[id [at] 0')).toMatchObject({
+      expression: {
+        type: 'BinaryExpression',
+        left: { type: 'Identifier', name: '[id' },
+        operator: { value: '[at]' },
+      },
+    });
+    expect(parser.parse('[1]')).toMatchObject({
+      expression: { type: 'ArrayExpression' },
+    });
+  });
+
   test('binaryOperators registers binary operators', () => {
     const parser = new Parser({
       binaryOperators: { '%': { precedence: 14 } },

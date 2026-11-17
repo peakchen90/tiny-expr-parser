@@ -7,6 +7,7 @@ import type {
   Operator,
   UnaryExpression,
   CallExpression,
+  ArrayExpression,
   InitialPartNode,
   FinishPartNode,
   NumericLiteral,
@@ -174,6 +175,7 @@ export class Parser {
       } else if (
         this.tokenStart === start ||
         this.tokenType === tt.parenR ||
+        this.tokenType === tt.bracketR ||
         this.tokenType === tt.comma
       ) {
         this.next(result.errors);
@@ -208,6 +210,8 @@ export class Parser {
         const args = node.arguments.map(stringify).join(', ');
         return `${callee}(${args})`;
       }
+      case 'ArrayExpression':
+        return `[${node.elements.map(stringify).join(', ')}]`;
       case 'UnaryExpression': {
         const operator = stringify(node.operator);
         const argument = stringify(node.argument);
@@ -336,6 +340,11 @@ export class Parser {
           }
           stack.push({ node: current.callee, exiting: false });
           break;
+        case 'ArrayExpression':
+          for (let i = current.elements.length - 1; i >= 0; i--) {
+            stack.push({ node: current.elements[i], exiting: false });
+          }
+          break;
         case 'UnaryExpression':
           stack.push({ node: current.argument, exiting: false });
           stack.push({ node: current.operator, exiting: false });
@@ -453,7 +462,7 @@ export class Parser {
   }
 
   /**
-   * 解析字面量、标识符、函数调用或已注册的前缀运算符
+   * 解析字面量、数组、标识符、函数调用或已注册的前缀运算符
    */
   private parseMaybeUnary(looseResult?: LooseParseResult): ExpressionNode {
     const precedence = this.tokenType.precedence;
@@ -499,6 +508,17 @@ export class Parser {
       );
     }
 
+    if (this.eat(tt.bracketL, errors)) {
+      return this.finishNode(
+        node as InitialPartNode<ArrayExpression>,
+        {
+          type: 'ArrayExpression',
+          elements: this.parseExpressionList(tt.bracketR, looseResult),
+        },
+        nodes,
+      );
+    }
+
     if (this.tokenType === tt.identifier) {
       this.next(errors);
       const identifier = this.finishNode(
@@ -510,30 +530,7 @@ export class Parser {
         return identifier;
       }
 
-      // 每个参数按完整表达式解析，逗号用于分隔参数
-      const args: ExpressionNode[] = [];
-      if (!this.eat(tt.parenR, errors)) {
-        do {
-          if (
-            errors &&
-            (this.tokenType === tt.comma ||
-              this.tokenType === tt.parenR ||
-              this.tokenType === tt.end)
-          ) {
-            // 缺失参数时保留分隔符和之后的参数，已有词法错误的空位不重复报错
-            if (
-              this.tokenType !== tt.end &&
-              (errors.length === 0 ||
-                errors[errors.length - 1].start < this.lastTokenEnd)
-            ) {
-              errors.push(this.unexpectedError());
-            }
-          } else {
-            args.push(this.parseExprAtom(this.tokenStart, -1, looseResult));
-          }
-        } while (this.eat(tt.comma, errors));
-        this.expect(tt.parenR, errors);
-      }
+      const args = this.parseExpressionList(tt.parenR, looseResult);
       return this.finishNode(
         this.startNode<CallExpression>(start),
         { type: 'CallExpression', callee: identifier, arguments: args },
@@ -542,6 +539,38 @@ export class Parser {
     }
 
     return this.unexpected();
+  }
+
+  /** 读取逗号分隔的数组元素或函数参数，每项按完整表达式解析 */
+  private parseExpressionList(
+    closingToken: TokenType,
+    looseResult?: LooseParseResult,
+  ): ExpressionNode[] {
+    const errors = looseResult?.errors;
+    const elements: ExpressionNode[] = [];
+    if (!this.eat(closingToken, errors)) {
+      do {
+        if (
+          errors &&
+          (this.tokenType === tt.comma ||
+            this.tokenType === closingToken ||
+            this.tokenType === tt.end)
+        ) {
+          // 保留分隔符和后续表达式，已有词法错误的空位不重复报错
+          if (
+            this.tokenType !== tt.end &&
+            (errors.length === 0 ||
+              errors[errors.length - 1].start < this.lastTokenEnd)
+          ) {
+            errors.push(this.unexpectedError());
+          }
+        } else {
+          elements.push(this.parseExprAtom(this.tokenStart, -1, looseResult));
+        }
+      } while (this.eat(tt.comma, errors));
+      this.expect(closingToken, errors);
+    }
+    return elements;
   }
 
   /**
@@ -826,6 +855,11 @@ export class Parser {
         return this.readIdentifier(errors);
       }
     }
+    if (code === 91 || code === 93) {
+      // 保留已注册的运算符和标识符前缀的匹配结果
+      this.pos = this.tokenStart + 1;
+      return this.finishToken(code === 91 ? tt.bracketL : tt.bracketR, char);
+    }
     this.unexpected(char);
   }
 
@@ -955,13 +989,13 @@ export class Parser {
   }
 
   /**
-   * 消费指定类型的 token，宽松模式下允许在输入末尾补全右括号
+   * 消费指定类型的 token，宽松模式下允许在输入末尾补全右圆括号或右方括号
    * @param type
    */
   private expect(type: TokenType, errors?: ParserError[]): void {
     if (!this.eat(type, errors)) {
       if (errors && this.tokenType === tt.end) {
-        // 嵌套分组或调用可以在同一个输入末尾结束
+        // 嵌套表达式可以在同一个输入末尾结束
         if (errors[errors.length - 1]?.code !== 'unexpectedEndOfInput') {
           errors.push(this.unexpectedError());
         }

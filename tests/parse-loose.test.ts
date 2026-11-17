@@ -128,6 +128,69 @@ describe('Parser Loose', () => {
     },
   );
 
+  test.each([
+    ['[1, ?, id]', 4],
+    ['[1,, id]', 3],
+  ])('recovers array elements in %s', (input, start) => {
+    const { nodes, errors } = new Parser().parseLoose(input);
+
+    expect(nodes).toMatchObject([
+      {
+        expression: {
+          type: 'ArrayExpression',
+          elements: [
+            { type: 'NumericLiteral', rawValue: '1' },
+            { type: 'Identifier', name: 'id' },
+          ],
+        },
+      },
+    ]);
+    expect(errors).toMatchObject([
+      { code: 'unexpectedToken', start, end: start + 1 },
+    ]);
+  });
+
+  test('retains unfinished arrays and reports the input end once', () => {
+    const input = '[1, [id';
+    const { nodes, errors } = new Parser().parseLoose(input);
+
+    expect(nodes).toMatchObject([
+      {
+        expression: {
+          type: 'ArrayExpression',
+          end: input.length,
+          elements: [
+            { type: 'NumericLiteral', rawValue: '1' },
+            {
+              type: 'ArrayExpression',
+              end: input.length,
+              elements: [{ type: 'Identifier', name: 'id' }],
+            },
+          ],
+        },
+      },
+    ]);
+    expect(errors).toMatchObject([
+      {
+        code: 'unexpectedEndOfInput',
+        start: input.length,
+        end: input.length,
+      },
+    ]);
+  });
+
+  test('resumes after a stray closing bracket in loose mode', () => {
+    const { nodes, errors } = new Parser().parseLoose('id ] other');
+
+    expect(nodes).toMatchObject([
+      { expression: { type: 'Identifier', name: 'id' } },
+      { expression: { type: 'Identifier', name: 'other' } },
+    ]);
+    expect(errors).toMatchObject([
+      { code: 'unexpectedToken', start: 3, end: 4 },
+    ]);
+  });
+
   test('keeps a dangling operator as a standalone node', () => {
     const { nodes, errors } = new Parser().parseLoose('a + ');
 

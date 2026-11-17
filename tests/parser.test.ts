@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
-import { Parser, ParserError, type Node } from '../src';
+import { describe, expect, expectTypeOf, test } from 'vitest';
+import { Parser, ParserError, type ArrayExpression, type Node } from '../src';
 import { astFixtures } from './fixtures/ast';
 
 describe('Parser Fixtures', () => {
@@ -83,6 +83,7 @@ describe('Parser Stringify', () => {
     ['1-(2-3)', '1 - (2 - 3)'],
     ['(a+b)*c/d', '(a + b) * c / d'],
     ['1--2', '1 - -2'],
+    ['[-2, x * (y + 1), f([id])] - 4', '[-2, x * (y + 1), f([id])] - 4'],
     [
       String.raw`f(g(),1_000,'a\n',变量)`,
       String.raw`f(g(), 1_000, 'a\n', 变量)`,
@@ -94,6 +95,19 @@ describe('Parser Stringify', () => {
     expect(parser.stringify(ast)).toBe(expected);
     expect(parser.stringify(ast.expression)).toBe(expected);
     expect(parser.stringify(ast, () => undefined)).toBe(expected);
+  });
+
+  test('stringifies arrays and applies custom formatting to their elements', () => {
+    const parser = new Parser();
+    const ast = parser.parse(' [1_000,[id,"23"],f(x)] ')!;
+
+    expect(parser.stringify(ast)).toBe('[1_000, [id, "23"], f(x)]');
+    expect(
+      parser.stringify(ast, (node) => {
+        if (node.type === 'Identifier') return node.name.toUpperCase();
+      }),
+    ).toBe('[1_000, [ID, "23"], F(X)]');
+    expect(parser.stringify(parser.parse('[]')!)).toBe('[]');
   });
 
   test('stringifies a standalone operator node', () => {
@@ -271,6 +285,35 @@ describe('Parser Walk', () => {
       'NumericLiteral:3',
     ]);
     expect(unaryAncestors).toEqual([ast, ast.expression]);
+  });
+
+  test('walks array elements in source order with typed callbacks and ancestors', () => {
+    const parser = new Parser();
+    const ast = parser.parse('[1, [id, "23"], end]')!;
+    const visited: string[] = [];
+
+    parser.walk(ast, {
+      ArrayExpression(node) {
+        expectTypeOf(node).toEqualTypeOf<ArrayExpression>();
+        visited.push(`array:${node.elements.length}`);
+      },
+      NumericLiteral(node) {
+        visited.push(node.rawValue);
+      },
+      StringLiteral(node) {
+        visited.push(node.rawValue);
+      },
+      Identifier(node, ancestors) {
+        expect(ancestors.map((ancestor) => ancestor.type)).toEqual(
+          node.name === 'id'
+            ? ['Expression', 'ArrayExpression', 'ArrayExpression']
+            : ['Expression', 'ArrayExpression'],
+        );
+        visited.push(node.name);
+      },
+    });
+
+    expect(visited).toEqual(['array:3', '1', 'array:2', 'id', '"23"', 'end']);
   });
 
   test('uses the supplied subtree as the ancestor root', () => {
@@ -750,6 +793,24 @@ describe('Call Expression', () => {
   ])('rejects invalid call `%s`', (input, message) => {
     expect(() => new Parser().parse(input)).toThrow(
       expect.objectContaining({ constructor: ParserError, message }),
+    );
+  });
+});
+
+describe('Array Expression', () => {
+  test.each([
+    ['[', 'unexpectedEndOfInput', 1, 1],
+    ['[1', 'unexpectedEndOfInput', 2, 2],
+    ['[1,', 'unexpectedEndOfInput', 3, 3],
+    ['[,1]', 'unexpectedToken', 1, 2],
+    ['[1,]', 'unexpectedToken', 3, 4],
+    ['[1,,2]', 'unexpectedToken', 3, 4],
+    ['[1 2]', 'unexpectedToken', 3, 4],
+    ['[1)', 'unexpectedToken', 2, 3],
+    ['items[0]', 'unexpectedToken', 5, 6],
+  ])('reports a syntax error for %s', (input, code, start, end) => {
+    expect(() => new Parser().parse(input)).toThrow(
+      expect.objectContaining({ constructor: ParserError, code, start, end }),
     );
   });
 });

@@ -13,6 +13,7 @@
 
 - 小型、零依赖
 - 支持自定义运算符
+- 支持包含嵌套表达式的数组
 - 支持宽松解析，适用于实时语法高亮和错误提示
 
 开发和构建要求 Node.js >= 24；发布产物可运行于 Node.js 与现代浏览器。
@@ -165,7 +166,7 @@ console.log(errors.map(({ start, end }) => [start, end])); // [[7, 8]]
 
 #### `parser.stringify(node: Node, customStringify?: StringifyCallback): string`
 
-将任意 AST 节点转换为表达式文本。二元运算和函数参数使用统一的空格格式，括号用于保留运算分组。数字和字符串字面量保留 `rawValue`。
+将任意 AST 节点转换为表达式文本。二元运算、函数参数和数组元素使用统一的空格格式，括号用于保留运算分组。数字和字符串字面量保留 `rawValue`。
 
 第二个参数是可选的节点转换回调。返回字符串时使用该结果，包括空字符串。返回 `undefined` 时使用当前节点的内置转换逻辑，其子节点仍会应用这个回调。调用回调参数 `stringify(child)` 也会用同一个回调转换指定节点。
 
@@ -228,8 +229,8 @@ const parser = new Parser({ messages: Parser.Messages.zh });
 
 | `Messages` 键               | 场景                                                        | 占位符         |
 | --------------------------- | ----------------------------------------------------------- | -------------- |
-| `unexpectedToken`           | 未知字符、非法数字，或逗号、括号等 token 出现在不允许的位置 | `{v}`、`{pos}` |
-| `unexpectedEndOfInput`      | 输入结束时仍缺操作数或右括号                                | `{pos}`        |
+| `unexpectedToken`           | 未知字符、非法数字，或逗号、圆括号、方括号等出现在不允许的位置 | `{v}`、`{pos}` |
+| `unexpectedEndOfInput`      | 输入结束时仍缺操作数、右圆括号或右方括号                       | `{pos}`        |
 | `unterminatedStringLiteral` | 字符串遇到输入末尾或未转义的换行，且引号尚未闭合            | `{pos}`        |
 | `invalidStringEscape`       | 字符串使用了不支持的转义                                    | `{pos}`        |
 | `invalidIdentifierEscape`   | 标识符 Unicode 转义格式无效，或解码字符不允许出现在当前位置 | `{pos}`        |
@@ -262,6 +263,7 @@ type ExpressionNode =
   | BinaryExpression
   | UnaryExpression
   | CallExpression
+  | ArrayExpression
   | NumericLiteral
   | StringLiteral
   | Identifier;
@@ -315,6 +317,13 @@ interface CallExpression {
   arguments: ExpressionNode[];
 }
 
+interface ArrayExpression {
+  type: 'ArrayExpression';
+  start: number;
+  end: number;
+  elements: ExpressionNode[];
+}
+
 interface Identifier {
   type: 'Identifier';
   start: number;
@@ -347,6 +356,27 @@ interface Identifier {
 字符串使用单引号或双引号，支持 `\\`、`\'`、`\"`、`\/`、`\b`、`\f`、`\n`、`\r`、`\t` 和 `\v` 转义。
 
 函数名为标识符，例如 `fn()` 和 `fn('text', other(1 + 2))`。参数用逗号分隔，末尾省略逗号。函数调用优先于一元和二元运算。
+
+### 数组
+
+数组使用方括号包裹逗号分隔的表达式，例如 `[1, "23", id]`。支持空数组和嵌套数组。每个元素可以是完整表达式，例如 `[x + 1, fn(id), [2]]`。每个分隔位置都需要提供元素，末尾省略逗号。
+
+数组在 AST 中表示为 `ArrayExpression` 节点。其 `elements` 按源码顺序排列，节点范围包含两个方括号。`walk()` 按顺序访问数组元素，`stringify()` 用逗号和一个空格连接元素。遇到缺失元素或右方括号时，`parseLoose()` 可以保留已识别的元素。
+
+```js
+const ast = parser.parse('[1,"23",id]');
+
+parser.walk(ast, {
+  ArrayExpression(node) {
+    console.log(node.elements.map((element) => element.type));
+    // ['NumericLiteral', 'StringLiteral', 'Identifier']
+  },
+});
+
+parser.stringify(ast); // '[1, "23", id]'
+```
+
+方括号与已有的自定义运算符或标识符前缀发生匹配冲突时，优先采用已有的匹配结果。
 
 ### 标识符语法
 

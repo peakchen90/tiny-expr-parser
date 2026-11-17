@@ -80,6 +80,7 @@ export type ExpressionNode =
   | BinaryExpression
   | UnaryExpression
   | CallExpression
+  | ArrayExpression
   | NumericLiteral
   | StringLiteral
   | Identifier;
@@ -113,6 +114,12 @@ export interface CallExpression extends NodeMeta {
   type: 'CallExpression';
   callee: Identifier;
   arguments: ExpressionNode[];
+}
+
+/** 数组表达式，元素按源码顺序排列 */
+export interface ArrayExpression extends NodeMeta {
+  type: 'ArrayExpression';
+  elements: ExpressionNode[];
 }
 
 export interface NumericLiteral extends NodeMeta {

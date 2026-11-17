@@ -810,4 +810,119 @@ export const astFixtures: ParserFixtures = {
       ],
     },
   },
+  '  [1, "23", id]  ': {
+    type: 'Expression',
+    start: 2,
+    end: 15,
+    expression: {
+      type: 'ArrayExpression',
+      start: 2,
+      end: 15,
+      elements: [
+        { type: 'NumericLiteral', rawValue: '1', value: '1', start: 3, end: 4 },
+        {
+          type: 'StringLiteral',
+          rawValue: '"23"',
+          value: '23',
+          start: 6,
+          end: 10,
+        },
+        { type: 'Identifier', name: 'id', start: 12, end: 14 },
+      ],
+    },
+  },
+  '[]': {
+    type: 'Expression',
+    start: 0,
+    end: 2,
+    expression: { type: 'ArrayExpression', start: 0, end: 2, elements: [] },
+  },
+  '[[], [𠀀]]': {
+    type: 'Expression',
+    start: 0,
+    end: 10,
+    expression: {
+      type: 'ArrayExpression',
+      start: 0,
+      end: 10,
+      elements: [
+        { type: 'ArrayExpression', start: 1, end: 3, elements: [] },
+        {
+          type: 'ArrayExpression',
+          start: 5,
+          end: 9,
+          elements: [{ type: 'Identifier', name: '𠀀', start: 6, end: 8 }],
+        },
+      ],
+    },
+  },
+  '[-2, x * (y + 1), f([id])] - 4': {
+    type: 'Expression',
+    start: 0,
+    end: 30,
+    expression: {
+      type: 'BinaryExpression',
+      start: 0,
+      end: 30,
+      operator: { type: 'Operator', value: '-', start: 27, end: 28 },
+      left: {
+        type: 'ArrayExpression',
+        start: 0,
+        end: 26,
+        elements: [
+          {
+            type: 'NumericLiteral',
+            rawValue: '-2',
+            value: '-2',
+            start: 1,
+            end: 3,
+          },
+          {
+            type: 'BinaryExpression',
+            start: 5,
+            end: 16,
+            operator: { type: 'Operator', value: '*', start: 7, end: 8 },
+            left: { type: 'Identifier', name: 'x', start: 5, end: 6 },
+            right: {
+              type: 'BinaryExpression',
+              start: 10,
+              end: 15,
+              operator: { type: 'Operator', value: '+', start: 12, end: 13 },
+              left: { type: 'Identifier', name: 'y', start: 10, end: 11 },
+              right: {
+                type: 'NumericLiteral',
+                rawValue: '1',
+                value: '1',
+                start: 14,
+                end: 15,
+              },
+            },
+          },
+          {
+            type: 'CallExpression',
+            start: 18,
+            end: 25,
+            callee: { type: 'Identifier', name: 'f', start: 18, end: 19 },
+            arguments: [
+              {
+                type: 'ArrayExpression',
+                start: 20,
+                end: 24,
+                elements: [
+                  { type: 'Identifier', name: 'id', start: 21, end: 23 },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      right: {
+        type: 'NumericLiteral',
+        rawValue: '4',
+        value: '4',
+        start: 29,
+        end: 30,
+      },
+    },
+  },
 };

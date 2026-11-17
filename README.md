@@ -13,6 +13,7 @@ English | [简体中文](./README.ZH-CN.md)
 
 - Tiny, zero dependencies
 - Supports custom operators
+- Supports arrays with nested expressions
 - Supports loose parsing for live syntax highlighting and diagnostics
 
 Requires Node.js >= 24 to develop and build; the published package runs in Node.js and modern browsers.
@@ -165,7 +166,7 @@ console.log(errors.map(({ start, end }) => [start, end])); // [[7, 8]]
 
 #### `parser.stringify(node: Node, customStringify?: StringifyCallback): string`
 
-Convert any AST node to expression text. Binary operators and call arguments use consistent spacing, with parentheses added to preserve grouping. Numeric and string literals retain their `rawValue`.
+Convert any AST node to expression text. Binary operators, call arguments, and array elements use consistent spacing, with parentheses added to preserve grouping. Numeric and string literals retain their `rawValue`.
 
 The optional second argument controls how individual nodes are converted. A returned string replaces the node's text, including when the string is empty. Return `undefined` to use built-in formatting for the current node. Its children still use the callback. Calling the supplied `stringify(child)` also applies the same callback to the given node.
 
@@ -228,8 +229,8 @@ const parser = new Parser({ messages: Parser.Messages.zh });
 
 | `Messages` key              | Scenario                                                                                          | Placeholders   |
 | --------------------------- | ------------------------------------------------------------------------------------------------- | -------------- |
-| `unexpectedToken`           | Unknown character, malformed number, or unexpected token such as a misplaced comma or parenthesis | `{v}`, `{pos}` |
-| `unexpectedEndOfInput`      | Input ends while an operand or closing parenthesis is required                                    | `{pos}`        |
+| `unexpectedToken`           | Unknown character, malformed number, or misplaced punctuation such as a comma, parenthesis, or bracket | `{v}`, `{pos}` |
+| `unexpectedEndOfInput`      | Input ends while an operand, closing parenthesis, or closing bracket is required                       | `{pos}`        |
 | `unterminatedStringLiteral` | String reaches the end of input or an unescaped line break without a closing quote                | `{pos}`        |
 | `invalidStringEscape`       | Unsupported escape in a string literal                                                            | `{pos}`        |
 | `invalidIdentifierEscape`   | Malformed Unicode escape or a decoded character invalid at that identifier position               | `{pos}`        |
@@ -262,6 +263,7 @@ type ExpressionNode =
   | BinaryExpression
   | UnaryExpression
   | CallExpression
+  | ArrayExpression
   | NumericLiteral
   | StringLiteral
   | Identifier;
@@ -315,6 +317,13 @@ interface CallExpression {
   arguments: ExpressionNode[];
 }
 
+interface ArrayExpression {
+  type: 'ArrayExpression';
+  start: number;
+  end: number;
+  elements: ExpressionNode[];
+}
+
 interface Identifier {
   type: 'Identifier';
   start: number;
@@ -347,6 +356,27 @@ Register `+` or `-` as a prefix operator with `addUnaryOperator` or the `unaryOp
 Strings use single or double quotes and support `\\`, `\'`, `\"`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`, and `\v` escapes.
 
 Calls use an identifier as the function name, as in `fn()` and `fn('text', other(1 + 2))`. Separate arguments with commas and omit the trailing comma. Calls bind before unary and binary operators.
+
+### Arrays
+
+Square brackets enclose a comma-separated list of expressions, as in `[1, "23", id]`. Arrays can be empty or nested. Each element can be a complete expression, as in `[x + 1, fn(id), [2]]`. Use one expression per element and omit the trailing comma.
+
+An array is represented by an `ArrayExpression` node in the AST. Its `elements` list follows source order, and the node's source range includes both brackets. `walk()` visits the elements in order, and `stringify()` joins them with a comma and a space. `parseLoose()` can retain recognized elements when an item is missing or input ends before the closing bracket.
+
+```js
+const ast = parser.parse('[1,"23",id]');
+
+parser.walk(ast, {
+  ArrayExpression(node) {
+    console.log(node.elements.map((element) => element.type));
+    // ['NumericLiteral', 'StringLiteral', 'Identifier']
+  },
+});
+
+parser.stringify(ast); // '[1, "23", id]'
+```
+
+Existing custom operator and identifier-prefix matches take precedence when they overlap with a bracket.
 
 ### Identifier syntax
 
