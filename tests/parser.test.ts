@@ -93,12 +93,13 @@ describe('Parser Stringify', () => {
 
     expect(parser.stringify(ast)).toBe(expected);
     expect(parser.stringify(ast.expression)).toBe(expected);
+    expect(parser.stringify(ast, () => undefined)).toBe(expected);
   });
 
   test('stringifies a standalone operator node', () => {
     expect(
       new Parser().stringify({
-        type: 'ExpressionOperator',
+        type: 'Operator',
         value: '+',
         start: 2,
         end: 3,
@@ -117,6 +118,94 @@ describe('Parser Stringify', () => {
     expect(parser.stringify(parser.parse('(low a)+b')!)).toBe('(low a) + b');
     expect(parser.stringify(parser.parse('- a')!)).toBe('- a');
     expect(parser.stringify(parser.parse('-(a+b)')!)).toBe('-(a + b)');
+  });
+
+  test('applies the same callback when it delegates to a child node', () => {
+    const parser = new Parser();
+    const ast = parser.parse("sum(a, 1_000, 'text') + b")!;
+
+    const text = parser.stringify(ast, (node, stringify) => {
+      if (node.type === 'Expression') return stringify(node.expression);
+      if (node.type === 'Identifier') return node.name.toUpperCase();
+    });
+
+    expect(text).toBe("SUM(A, 1_000, 'text') + B");
+    expect(parser.stringify(ast)).toBe("sum(a, 1_000, 'text') + b");
+  });
+
+  test('applies the callback once to each visited binary node on the left chain', () => {
+    const parser = new Parser();
+    const ast = parser.parse('a + b + c + d')!;
+    const binaryNodes: Node[] = [];
+
+    const text = parser.stringify(ast, (node, stringify) => {
+      if (node.type === 'Identifier') return node.name.toUpperCase();
+      if (node.type === 'BinaryExpression') {
+        binaryNodes.push(node);
+        if (node.right.type === 'Identifier' && node.right.name === 'c') {
+          return `sum(${stringify(node.left)}, ${stringify(node.right)})`;
+        }
+      }
+    });
+
+    expect(text).toBe('sum(A + B, C) + D');
+    expect(binaryNodes).toHaveLength(3);
+    expect(new Set(binaryNodes).size).toBe(3);
+  });
+
+  test('preserves built-in grouping around customized binary children', () => {
+    const parser = new Parser();
+    const ast = parser.parse('(a + b) * c + a * (b + c)')!;
+
+    expect(
+      parser.stringify(ast, (node) => {
+        if (
+          node.type === 'BinaryExpression' &&
+          node.left.type === 'Identifier' &&
+          node.right.type === 'Identifier'
+        ) {
+          return 'combined';
+        }
+      }),
+    ).toBe('(combined) * c + a * (combined)');
+  });
+
+  test('applies the callback to unary operands and operator nodes', () => {
+    const parser = new Parser({ unaryOperators: { '-': { precedence: 16 } } });
+    const ast = parser.parse('-(a + b)')!;
+
+    expect(
+      parser.stringify(ast, (node) => {
+        if (node.type === 'Identifier') return node.name.toUpperCase();
+        if (node.type === 'Operator')
+          return node.value === '-' ? 'neg' : 'plus';
+      }),
+    ).toBe('neg(A plus B)');
+  });
+
+  test('uses an empty string override without visiting the children', () => {
+    const parser = new Parser();
+    const ast = parser.parse('a + b')!;
+    const visited: Node[] = [];
+
+    expect(
+      parser.stringify(ast, (node) => {
+        visited.push(node);
+        return '';
+      }),
+    ).toBe('');
+    expect(visited).toEqual([ast]);
+  });
+
+  test('supports a callback on a long binary chain', () => {
+    const parser = new Parser();
+    const ast = parser.parse(`a${'+a'.repeat(20_000)}`)!;
+
+    expect(
+      parser.stringify(ast, (node) => {
+        if (node.type === 'Identifier') return 'b';
+      }),
+    ).toBe(`b${' + b'.repeat(20_000)}`);
   });
 });
 
@@ -143,7 +232,7 @@ describe('Parser Walk', () => {
       BinaryExpression(node) {
         visited.push(`${node.type}:${node.operator.value}`);
       },
-      ExpressionOperator(node) {
+      Operator(node) {
         visited.push(`${node.type}:${node.value}`);
       },
       Identifier(node) {
@@ -170,15 +259,15 @@ describe('Parser Walk', () => {
       'CallExpression',
       'Identifier:f',
       'UnaryExpression',
-      'ExpressionOperator:-',
+      'Operator:-',
       'Identifier:a',
       'StringLiteral:x',
       'BinaryExpression:+',
       'NumericLiteral:1',
-      'ExpressionOperator:+',
+      'Operator:+',
       'BinaryExpression:*',
       'NumericLiteral:2',
-      'ExpressionOperator:*',
+      'Operator:*',
       'NumericLiteral:3',
     ]);
     expect(unaryAncestors).toEqual([ast, ast.expression]);
@@ -227,7 +316,7 @@ describe('Parser Walk', () => {
         ]);
         options.skip();
       },
-      ExpressionOperator(node) {
+      Operator(node) {
         visited.push(`${node.type}:${node.value}`);
       },
       Identifier(node, ancestors) {
@@ -546,7 +635,7 @@ describe('Identifier Prefix Characters', () => {
     expect(parser.parse('~名称')).toMatchObject({
       expression: {
         type: 'UnaryExpression',
-        operator: { type: 'ExpressionOperator', value: '~' },
+        operator: { type: 'Operator', value: '~' },
         argument: { type: 'Identifier', name: '名称' },
       },
     });

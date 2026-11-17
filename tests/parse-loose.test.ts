@@ -133,7 +133,7 @@ describe('Parser Loose', () => {
 
     expect(nodes).toEqual([
       { type: 'Identifier', name: 'a', start: 0, end: 1 },
-      { type: 'ExpressionOperator', value: '+', start: 2, end: 3 },
+      { type: 'Operator', value: '+', start: 2, end: 3 },
     ]);
     expect(errors).toMatchObject([
       { code: 'unexpectedEndOfInput', start: 4, end: 4 },
@@ -145,8 +145,8 @@ describe('Parser Loose', () => {
 
     expect(nodes).toMatchObject([
       { type: 'Identifier', name: 'a', start: 0, end: 1 },
-      { type: 'ExpressionOperator', value: '+', start: 2, end: 3 },
-      { type: 'ExpressionOperator', value: '*', start: 4, end: 5 },
+      { type: 'Operator', value: '+', start: 2, end: 3 },
+      { type: 'Operator', value: '*', start: 4, end: 5 },
       {
         type: 'Expression',
         expression: { type: 'Identifier', name: 'b', start: 6, end: 7 },

@@ -52,11 +52,11 @@ const ast = parser.parse('1 + 2 * a');
   type: 'Expression',
   expression: {
     type: 'BinaryExpression',
-    operator: { type: 'ExpressionOperator', value: '+', start: 2, end: 3 },
+    operator: { type: 'Operator', value: '+', start: 2, end: 3 },
     left: { type: 'NumericLiteral', rawValue: '1', value: '1', start: 0, end: 1 },
     right: {
       type: 'BinaryExpression',
-      operator: { type: 'ExpressionOperator', value: '*', start: 6, end: 7 },
+      operator: { type: 'Operator', value: '*', start: 6, end: 7 },
       left: { type: 'NumericLiteral', rawValue: '2', value: '2', start: 4, end: 5 },
       right: { type: 'Identifier', name: 'a', start: 8, end: 9 },
     },
@@ -163,15 +163,34 @@ for (const node of nodes) {
 console.log(errors.map(({ start, end }) => [start, end])); // [[7, 8]]
 ```
 
-#### `parser.stringify(node: Node): string`
+#### `parser.stringify(node: Node, customStringify?: StringifyCallback): string`
 
 将任意 AST 节点转换为表达式文本。二元运算和函数参数使用统一的空格格式，括号用于保留运算分组。数字和字符串字面量保留 `rawValue`。
+
+第二个参数是可选的节点转换回调。返回字符串时使用该结果，包括空字符串。返回 `undefined` 时使用当前节点的内置转换逻辑，其子节点仍会应用这个回调。调用回调参数 `stringify(child)` 也会用同一个回调转换指定节点。
+
+```ts
+type StringifyCallback = (
+  node: Node,
+  stringify: (node: Node) => string,
+) => string | undefined;
+```
+
+```js
+const ast = parser.parse('sum(a, 2) + b');
+
+const text = parser.stringify(ast, (node, stringify) => {
+  if (node.type === 'Expression') return stringify(node.expression);
+  if (node.type === 'Identifier') return node.name.toUpperCase();
+});
+// text 为 'SUM(A, 2) + B'
+```
 
 #### `parser.walk(node: Node, visitors: WalkVisitors): void`
 
 以深度优先前序迭代遍历 AST，不使用递归函数。每个回调接收当前节点 `node`、祖先列表 `ancestors` 和控制对象 `options`。调用 `options.skip()` 可跳过当前节点的所有子节点，并继续遍历当前子树之外的后续节点；调用 `options.stop()` 可立即终止整个遍历。
 
-`ancestors` 按从起始节点到当前节点直接父节点的顺序排列，不包含当前节点；起始节点的祖先列表为 `[]`。包括 `ExpressionOperator` 在内的所有节点都会遍历，子节点按源码顺序访问。各类回调均可省略，省略某个节点的回调不会跳过其子树。TypeScript 会自动推导每个回调的具体节点类型。
+`ancestors` 按从起始节点到当前节点直接父节点的顺序排列，不包含当前节点；起始节点的祖先列表为 `[]`。包括 `Operator` 在内的所有节点都会遍历，子节点按源码顺序访问。各类回调均可省略，省略某个节点的回调不会跳过其子树。TypeScript 会自动推导每个回调的具体节点类型。
 
 ```js
 const ast = parser.parse('a + 2 * b');
@@ -253,7 +272,7 @@ interface BinaryExpression {
   end: number;
   left: ExpressionNode;
   right: ExpressionNode;
-  operator: ExpressionOperator;
+  operator: Operator;
 }
 
 interface UnaryExpression {
@@ -261,12 +280,12 @@ interface UnaryExpression {
   start: number;
   end: number;
   argument: ExpressionNode;
-  operator: ExpressionOperator;
+  operator: Operator;
   prefix: boolean; // 恒为 true
 }
 
-interface ExpressionOperator {
-  type: 'ExpressionOperator';
+interface Operator {
+  type: 'Operator';
   start: number;
   end: number;
   value: string;

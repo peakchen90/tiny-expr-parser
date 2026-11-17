@@ -3,7 +3,8 @@ import type {
   RootNode,
   ExpressionNode,
   Node,
-  ExpressionOperator,
+  StringifyCallback,
+  Operator,
   UnaryExpression,
   CallExpression,
   InitialPartNode,
@@ -183,28 +184,33 @@ export class Parser {
     return result;
   }
 
-  /** 将 AST 节点转换为表达式文本，保留字面量的原始写法 */
-  stringify(node: Node): string {
+  /**
+   * 将 AST 节点转换为表达式文本，默认保留字面量的原始写法
+   * 自定义回调返回 undefined 时使用内置逻辑，其 stringify 参数会继续应用同一回调
+   */
+  stringify(node: Node, customStringify?: StringifyCallback): string {
+    const stringify = (child: Node) => this.stringify(child, customStringify);
+    const customText = customStringify?.(node, stringify);
+    if (customText !== undefined) return customText;
+
     switch (node.type) {
       case 'Expression':
-        return this.stringify(node.expression);
+        return stringify(node.expression);
       case 'NumericLiteral':
       case 'StringLiteral':
         return node.rawValue;
       case 'Identifier':
         return node.name;
-      case 'ExpressionOperator':
+      case 'Operator':
         return node.value;
       case 'CallExpression': {
-        const callee = this.stringify(node.callee);
-        const args = node.arguments
-          .map((argument) => this.stringify(argument))
-          .join(', ');
+        const callee = stringify(node.callee);
+        const args = node.arguments.map(stringify).join(', ');
         return `${callee}(${args})`;
       }
       case 'UnaryExpression': {
-        const operator = this.stringify(node.operator);
-        const argument = this.stringify(node.argument);
+        const operator = stringify(node.operator);
+        const argument = stringify(node.argument);
         if (node.argument.type === 'BinaryExpression') {
           return `${operator}(${argument})`;
         }
@@ -232,7 +238,7 @@ export class Parser {
         while (true) {
           const { left, operator, right } = current;
           const precedence = this.getBinaryPrecedence(operator.value);
-          const rightText = this.stringify(right);
+          const rightText = stringify(right);
           const rightPrecedence =
             right.type === 'BinaryExpression'
               ? this.getBinaryPrecedence(right.operator.value)
@@ -244,15 +250,15 @@ export class Parser {
                 rightPrecedence === undefined ||
                 rightPrecedence <= precedence));
           segments.push(
-            ` ${this.stringify(operator)} ${wrapRight ? `(${rightText})` : rightText}`,
+            ` ${stringify(operator)} ${wrapRight ? `(${rightText})` : rightText}`,
           );
 
           if (left.type !== 'BinaryExpression') {
-            const leftText = this.stringify(left);
+            const leftText = stringify(left);
             segments.push(
               left.type === 'UnaryExpression' ? `(${leftText})` : leftText,
             );
-            return prefix + segments.reverse().join('');
+            break;
           }
 
           const leftPrecedence = this.getBinaryPrecedence(left.operator.value);
@@ -265,8 +271,16 @@ export class Parser {
             prefix += '(';
             segments.push(')');
           }
+
+          // 左侧二元节点沿迭代路径处理，也需要应用自定义回调
+          const leftText = customStringify?.(left, stringify);
+          if (leftText !== undefined) {
+            segments.push(leftText);
+            break;
+          }
           current = left;
         }
+        return prefix + segments.reverse().join('');
       }
     }
   }
@@ -533,13 +547,13 @@ export class Parser {
   /**
    * 读取运算符节点，范围只覆盖当前运算符 token
    */
-  private parseOperator(looseResult?: LooseParseResult): ExpressionOperator {
-    const node = this.startNode<ExpressionOperator>();
+  private parseOperator(looseResult?: LooseParseResult): Operator {
+    const node = this.startNode<Operator>();
     const value = this.tokenText;
     this.next(looseResult?.errors);
     return this.finishNode(
       node,
-      { type: 'ExpressionOperator', value },
+      { type: 'Operator', value },
       looseResult?.nodes,
     );
   }

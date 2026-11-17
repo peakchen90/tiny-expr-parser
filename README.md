@@ -52,11 +52,11 @@ The returned AST is a plain JSON-serializable object:
   type: 'Expression',
   expression: {
     type: 'BinaryExpression',
-    operator: { type: 'ExpressionOperator', value: '+', start: 2, end: 3 },
+    operator: { type: 'Operator', value: '+', start: 2, end: 3 },
     left: { type: 'NumericLiteral', rawValue: '1', value: '1', start: 0, end: 1 },
     right: {
       type: 'BinaryExpression',
-      operator: { type: 'ExpressionOperator', value: '*', start: 6, end: 7 },
+      operator: { type: 'Operator', value: '*', start: 6, end: 7 },
       left: { type: 'NumericLiteral', rawValue: '2', value: '2', start: 4, end: 5 },
       right: { type: 'Identifier', name: 'a', start: 8, end: 9 },
     },
@@ -163,15 +163,34 @@ for (const node of nodes) {
 console.log(errors.map(({ start, end }) => [start, end])); // [[7, 8]]
 ```
 
-#### `parser.stringify(node: Node): string`
+#### `parser.stringify(node: Node, customStringify?: StringifyCallback): string`
 
 Convert any AST node to expression text. Binary operators and call arguments use consistent spacing, with parentheses added to preserve grouping. Numeric and string literals retain their `rawValue`.
+
+The optional second argument controls how individual nodes are converted. A returned string replaces the node's text, including when the string is empty. Return `undefined` to use built-in formatting for the current node. Its children still use the callback. Calling the supplied `stringify(child)` also applies the same callback to the given node.
+
+```ts
+type StringifyCallback = (
+  node: Node,
+  stringify: (node: Node) => string,
+) => string | undefined;
+```
+
+```js
+const ast = parser.parse('sum(a, 2) + b');
+
+const text = parser.stringify(ast, (node, stringify) => {
+  if (node.type === 'Expression') return stringify(node.expression);
+  if (node.type === 'Identifier') return node.name.toUpperCase();
+});
+// text is 'SUM(A, 2) + B'
+```
 
 #### `parser.walk(node: Node, visitors: WalkVisitors): void`
 
 Traverse an AST iteratively in depth-first pre-order, without recursive calls. Each visitor receives the current `node`, an `ancestors` array, and an `options` object. Call `options.skip()` to skip the current node's children and continue outside its subtree, or `options.stop()` to stop the entire traversal immediately.
 
-The `ancestors` array is ordered from the starting node to the current node's direct parent. The current node is excluded, so the starting node receives an empty array. All node types, including `ExpressionOperator`, are visited, and children follow source order. Visitor callbacks are optional; omitting a node's callback does not skip its subtree. TypeScript infers the specific node type for each callback.
+The `ancestors` array is ordered from the starting node to the current node's direct parent. The current node is excluded, so the starting node receives an empty array. All node types, including `Operator`, are visited, and children follow source order. Visitor callbacks are optional; omitting a node's callback does not skip its subtree. TypeScript infers the specific node type for each callback.
 
 ```js
 const ast = parser.parse('a + 2 * b');
@@ -253,7 +272,7 @@ interface BinaryExpression {
   end: number;
   left: ExpressionNode;
   right: ExpressionNode;
-  operator: ExpressionOperator;
+  operator: Operator;
 }
 
 interface UnaryExpression {
@@ -261,12 +280,12 @@ interface UnaryExpression {
   start: number;
   end: number;
   argument: ExpressionNode;
-  operator: ExpressionOperator;
+  operator: Operator;
   prefix: boolean; // always true
 }
 
-interface ExpressionOperator {
-  type: 'ExpressionOperator';
+interface Operator {
+  type: 'Operator';
   start: number;
   end: number;
   value: string;

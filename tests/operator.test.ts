@@ -23,7 +23,7 @@ describe('Binary Operator', () => {
     expect(parser.parse('2 ** 3')).toMatchObject({
       expression: {
         type: 'BinaryExpression',
-        operator: { type: 'ExpressionOperator', value: '**', start: 2, end: 4 },
+        operator: { type: 'Operator', value: '**', start: 2, end: 4 },
       },
     });
     expect(parser.parse('2 ** 3 - 1')).toMatchObject({
@@ -41,7 +41,7 @@ describe('Binary Operator', () => {
     expect(parser.parse('𠀀 🧮 -2')).toMatchObject({
       expression: {
         type: 'BinaryExpression',
-        operator: { type: 'ExpressionOperator', value: '🧮', start: 3, end: 5 },
+        operator: { type: 'Operator', value: '🧮', start: 3, end: 5 },
         right: {
           type: 'NumericLiteral',
           rawValue: '-2',
@@ -218,7 +218,7 @@ describe('Unary Operator', () => {
       expression: {
         type: 'UnaryExpression',
         operator: {
-          type: 'ExpressionOperator',
+          type: 'Operator',
           value: 'double',
           start: 0,
           end: 6,

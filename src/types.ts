@@ -45,7 +45,13 @@ export interface Messages {
   invalidIdentifierEscape: string;
 }
 
-export type Node = RootNode | ExpressionNode | ExpressionOperator;
+export type Node = RootNode | ExpressionNode | Operator;
+
+/** 自定义节点的字符串，返回 undefined 时使用内置逻辑 */
+export type StringifyCallback = (
+  node: Node,
+  stringify: (node: Node) => string,
+) => string | undefined;
 
 /** 宽松解析得到的 AST 片段和语法错误，均按源码位置排列 */
 export interface LooseParseResult {
@@ -87,19 +93,19 @@ export interface BinaryExpression extends NodeMeta {
   type: 'BinaryExpression';
   left: ExpressionNode;
   right: ExpressionNode;
-  operator: ExpressionOperator;
+  operator: Operator;
 }
 
 export interface UnaryExpression extends NodeMeta {
   type: 'UnaryExpression';
   argument: ExpressionNode;
-  operator: ExpressionOperator;
+  operator: Operator;
   prefix: boolean;
 }
 
 /** 表达式中的运算符及其源码位置 */
-export interface ExpressionOperator extends NodeMeta {
-  type: 'ExpressionOperator';
+export interface Operator extends NodeMeta {
+  type: 'Operator';
   value: string;
 }
 
