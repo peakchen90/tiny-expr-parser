@@ -11,10 +11,10 @@ English | [简体中文](./README.ZH-CN.md)
 
 ## Features
 
-- Tiny, zero dependencies
-- Supports custom operators
-- Supports arrays with nested expressions
-- Supports loose parsing for live syntax highlighting and diagnostics
+- Lightweight, with zero runtime dependencies
+- Configurable syntax and custom operators
+- Strict and loose parsing for validation and live highlighting
+- AST with source ranges, traversal, and customizable output
 
 Requires Node.js >= 24 to develop and build; the published package runs in Node.js and modern browsers.
 
