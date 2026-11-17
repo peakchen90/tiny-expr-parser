@@ -67,7 +67,7 @@ The returned AST is a plain JSON-serializable object:
 }
 ```
 
-Custom operators are registered per parser instance, either through constructor options or instance methods. See [precedence of built-in operators](#precedence-of-built-in-operators) when choosing a precedence.
+Custom operators are registered per parser instance, either through constructor options or instance methods. See [operator precedence](#operator-precedence) when choosing a precedence.
 
 ```js
 import { Parser } from 'tiny-expr-parser';
@@ -336,16 +336,25 @@ interface Identifier {
 
 ## Advanced
 
-### Precedence of built-in operators
+### Operator precedence
 
-| operator    | precedence |
-| ----------- | ---------- |
-| `... + ...` | 13         |
-| `... - ...` | 13         |
-| `... * ...` | 14         |
-| `... / ...` | 14         |
+Higher numbers bind more tightly. Binary operators with the same precedence associate from left to right. The values for custom operators are suggestions for registration.
 
-Precedence follows the [MDN operator precedence table](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_precedence).
+| Category                    | Operators                | Precedence | Availability |
+| --------------------------- | ------------------------ | ---------: | ------------ |
+| Prefix unary                | `!`, `~`, `+`, `-`       |         16 | Custom       |
+| Exponentiation              | `**`                     |         15 | Custom       |
+| Multiplication and division | `*`, `/`                 |         14 | Built in     |
+| Remainder                   | `%`                      |         14 | Custom       |
+| Addition and subtraction    | `+`, `-`                 |         13 | Built in     |
+| Bitwise shifts              | `<<`, `>>`, `>>>`        |         12 | Custom       |
+| Comparisons                 | `<`, `<=`, `>`, `>=`     |         11 | Custom       |
+| Equality                    | `==`, `!=`, `===`, `!==` |         10 | Custom       |
+| Bitwise AND                 | `&`                      |          9 | Custom       |
+| Bitwise XOR                 | `^`                      |          8 | Custom       |
+| Bitwise OR                  | `\|`                     |          7 | Custom       |
+| Logical AND                 | `&&`                     |          6 | Custom       |
+| Logical OR                  | `\|\|`                   |          5 | Custom       |
 
 ### Number syntax
 
