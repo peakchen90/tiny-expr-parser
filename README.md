@@ -378,7 +378,7 @@ parser.walk(ast, {
 parser.stringify(ast); // '[1, "23", id]'
 ```
 
-Existing custom operator and identifier-prefix matches take precedence when they overlap with a bracket.
+A configured identifier prefix can take precedence over a bracket.
 
 ### Identifier syntax
 
@@ -386,8 +386,10 @@ Identifiers use the ECMAScript `IdentifierName` character rules. Names can conta
 
 ### Custom operator rules
 
-- must be a non-empty string without whitespace, and must not start with `.`, a digit, or `?`
+- must be a non-empty string without whitespace or control characters
+- must not start with `.`, a digit, `?`, `[`, or `]`
 - `(`, `)`, `,`, `'`, and `"` are reserved
+- precedence must be a finite number greater than or equal to zero
 - longer operators are matched first, and the most recently registered one wins on the same label
 
 ## Contributing

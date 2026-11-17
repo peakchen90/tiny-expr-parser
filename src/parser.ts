@@ -886,7 +886,7 @@ export class Parser {
       }
     }
     if (code === 91 || code === 93) {
-      // 保留已注册的运算符和标识符前缀的匹配结果
+      // 已配置的标识符前缀优先于方括号
       if (!this.options.features.array) {
         this.unexpected(char);
       }
@@ -1137,6 +1137,9 @@ export class Parser {
     if (typeof value !== 'string' || !/^\S+$/.test(value)) {
       throw new Error('The custom operator should be a non-empty string');
     }
+    if (/\p{Cc}/u.test(value)) {
+      throw new Error('The custom operator cannot contain control characters');
+    }
     if (/[(),'"]/.test(value)) {
       throw new Error(
         'The custom operator cannot use reserved characters, including parentheses, commas and quotes',
@@ -1151,13 +1154,12 @@ export class Parser {
       // `?`
       throw new Error('The custom operator cannot start with `?`');
     }
-    if (
-      typeof precedence !== 'number' ||
-      Number.isNaN(precedence) ||
-      precedence < 0
-    ) {
+    if (value[0] === '[' || value[0] === ']') {
+      throw new Error('The custom operator cannot start with `[` or `]`');
+    }
+    if (!Number.isFinite(precedence) || precedence < 0) {
       throw new Error(
-        'The precedence should be a number greater than or equal to 0',
+        'The precedence should be a finite number greater than or equal to 0',
       );
     }
 

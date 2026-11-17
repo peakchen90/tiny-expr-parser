@@ -177,13 +177,50 @@ describe('Binary Operator', () => {
     },
   );
 
-  test('rejects NaN precedence when registering an operator', () => {
+  test.each(['[', '[at]', ']', ']at'])(
+    'rejects a custom operator starting with a bracket: %s',
+    (operator) => {
+      const parser = new Parser();
+      expect(() => parser.addBinaryOperator(operator, 13)).toThrow(
+        'The custom operator cannot start with `[` or `]`',
+      );
+      expect(() => parser.addUnaryOperator(operator, 16)).toThrow(
+        'The custom operator cannot start with `[` or `]`',
+      );
+    },
+  );
+
+  test.each(['\0', 'op\x1b', 'op\u0085'])(
+    'rejects control characters in a custom operator: %j',
+    (operator) => {
+      expect(() => new Parser().addBinaryOperator(operator, 13)).toThrow(
+        'The custom operator cannot contain control characters',
+      );
+    },
+  );
+
+  test.each([NaN, Infinity, -Infinity])(
+    'rejects non-finite precedence %s when registering an operator',
+    (precedence) => {
+      const parser = new Parser();
+      expect(() => parser.addBinaryOperator('+', precedence)).toThrow(
+        /The precedence should be a finite number/,
+      );
+      expect(parser.parse('1+2')).toMatchObject({
+        expression: { operator: { value: '+' } },
+      });
+    },
+  );
+
+  test('accepts fractional precedence', () => {
     const parser = new Parser();
-    expect(() => parser.addBinaryOperator('+', NaN)).toThrow(
-      /The precedence should be a number/,
-    );
-    expect(parser.parse('1+2')).toMatchObject({
-      expression: { operator: { value: '+' } },
+    parser.addBinaryOperator('%', 13.5);
+
+    expect(parser.parse('1 + 2 % 3')).toMatchObject({
+      expression: {
+        operator: { value: '+' },
+        right: { operator: { value: '%' } },
+      },
     });
   });
 
@@ -206,7 +243,9 @@ describe('Binary Operator', () => {
     }).toThrow(/The custom operator cannot start with `?`/);
     expect(() => {
       parser.addBinaryOperator('%', -1);
-    }).toThrow(/The precedence should be a number greater than or equal to 0/);
+    }).toThrow(
+      /The precedence should be a finite number greater than or equal to 0/,
+    );
   });
 });
 
@@ -297,17 +336,17 @@ describe('Operator Options', () => {
     });
   });
 
-  test('preserves existing operator and identifier prefix matches with brackets', () => {
+  test('allows brackets after the first character and preserves identifier prefixes', () => {
     const parser = new Parser({
       identifierPrefixChars: ['['],
-      binaryOperators: { '[at]': { precedence: 16 } },
+      binaryOperators: { 'at]': { precedence: 16 } },
     });
 
-    expect(parser.parse('[id [at] 0')).toMatchObject({
+    expect(parser.parse('[id at] 0')).toMatchObject({
       expression: {
         type: 'BinaryExpression',
         left: { type: 'Identifier', name: '[id' },
-        operator: { value: '[at]' },
+        operator: { value: 'at]' },
       },
     });
     expect(parser.parse('[1]')).toMatchObject({
@@ -439,6 +478,8 @@ describe('Operator Options', () => {
     );
     expect(() => {
       new Parser({ unaryOperators: { '%': { precedence: -1 } } });
-    }).toThrow(/The precedence should be a number greater than or equal to 0/);
+    }).toThrow(
+      /The precedence should be a finite number greater than or equal to 0/,
+    );
   });
 });
