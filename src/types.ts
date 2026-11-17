@@ -14,6 +14,8 @@ export interface ParserOptions {
     number?: boolean;
     /** 字符串字面量 */
     string?: boolean;
+    /** 数组表达式 */
+    array?: boolean;
     /** 函数调用，关闭后括号仍可用于分组 */
     call?: boolean;
     /** 内置二元运算符 `+` */

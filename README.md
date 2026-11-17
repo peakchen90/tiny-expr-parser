@@ -111,6 +111,7 @@ All features are enabled by default; set one to `false` to reject that syntax.
 | --------------- | -------------------------------------------------------------------------------------------- |
 | `number`        | Numeric literals. Negative literals such as `-2` are rejected as well.                       |
 | `string`        | String literals.                                                                             |
+| `array`         | Array expressions.                                                                           |
 | `call`          | Function calls. Grouping parentheses remain available when disabled.                         |
 | `plusOperator`  | Built-in binary operator `+`.                                                                |
 | `minusOperator` | Built-in binary operator `-`. Negative literals such as `-2` remain available when disabled. |

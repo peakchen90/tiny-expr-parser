@@ -422,6 +422,7 @@ describe('Parser Features', () => {
       features: {
         number: true,
         string: true,
+        array: true,
         call: false,
         plusOperator: true,
         minusOperator: true,
@@ -470,6 +471,23 @@ describe('Parser Features', () => {
       expression: {
         type: 'CallExpression',
         arguments: [{ type: 'NumericLiteral', value: '2' }],
+      },
+    });
+  });
+
+  test('disables array expressions independently', () => {
+    const parser = new Parser({ features: { array: false } });
+
+    expect(() => parser.parse('[]')).toThrow(
+      'Unexpected token [ at position 0',
+    );
+    expect(() => parser.parse('f([1])')).toThrow(
+      'Unexpected token [ at position 2',
+    );
+    expect(parser.parse('f(1)')).toMatchObject({
+      expression: {
+        type: 'CallExpression',
+        arguments: [{ type: 'NumericLiteral', value: '1' }],
       },
     });
   });

@@ -519,6 +519,19 @@ describe('Parser Loose', () => {
     expect(result.errors).toHaveLength(1);
   });
 
+  test('reports disabled array syntax while retaining the contents', () => {
+    const parser = new Parser({ features: { array: false } });
+    const { nodes, errors } = parser.parseLoose('[id]');
+
+    expect(nodes).toMatchObject([
+      { expression: { type: 'Identifier', name: 'id', start: 1, end: 3 } },
+    ]);
+    expect(errors).toMatchObject([
+      { code: 'unexpectedToken', start: 0, end: 1 },
+      { code: 'unexpectedToken', start: 3, end: 4 },
+    ]);
+  });
+
   test('respects disabled call syntax while retaining the identifiers', () => {
     const parser = new Parser({ features: { call: false } });
     const { nodes, errors } = parser.parseLoose('f(a)');

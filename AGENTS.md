@@ -11,7 +11,7 @@
 ## 新增 feature 流程
 
 1. 阅读相关实现，明确新增行为和影响范围。有歧义时先向用户确认
-2. 按现有结构实现。涉及 AST 时，检查 `parse()`、`parseLoose()`、`walk()` 和 `stringify()`，源码范围沿用从 0 开始、含首不含尾的 UTF-16 偏移
-3. 补充正常和异常用例。常规 AST 放入 `tests/fixtures/ast.ts`，特殊规则放入现有对应的测试文件
+2. 按现有结构实现。新增语法接入 `ParserOptions.features`，默认启用。涉及 AST 时，检查 `parse()`、`parseLoose()`、`walk()` 和 `stringify()`，源码范围沿用从 0 开始、含首不含尾的 UTF-16 偏移
+3. 补充正常和异常用例，语法开关覆盖启用和关闭场景。常规 AST 放入 `tests/fixtures/ast.ts`，特殊规则放入现有对应的测试文件
 4. 公开 API 或用法变更时，同步更新 `README.md` 和 `README.ZH-CN.md`
 5. 使用 Node.js 24 对改动文件执行 TypeScript 或 ESLint 检查。运行 Vitest 或其他功能验证前先取得用户授权

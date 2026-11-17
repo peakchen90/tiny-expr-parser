@@ -78,6 +78,7 @@ export class Parser {
       features: {
         number: features?.number !== false,
         string: features?.string !== false,
+        array: features?.array !== false,
         call: features?.call !== false,
         plusOperator: features?.plusOperator !== false,
         minusOperator: features?.minusOperator !== false,
@@ -886,6 +887,9 @@ export class Parser {
     }
     if (code === 91 || code === 93) {
       // 保留已注册的运算符和标识符前缀的匹配结果
+      if (!this.options.features.array) {
+        this.unexpected(char);
+      }
       this.pos = this.tokenStart + 1;
       return this.finishToken(code === 91 ? tt.bracketL : tt.bracketR, char);
     }
