@@ -53,9 +53,12 @@ async function main() {
 
   let next;
   for (;;) {
-    const input = (
-      await rl.question(`\nEnter the new version (e.g. ${patchExample}): `)
-    ).trim();
+    const input =
+      (
+        await rl.question(
+          `\nEnter the new version (default: ${patchExample}): `,
+        )
+      ).trim() || patchExample;
     next = semver.valid(input);
     if (!next) {
       console.error(`Invalid semver version: ${input}`);
