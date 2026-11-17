@@ -133,6 +133,7 @@ interface LooseParseResult {
 ```
 
 - `nodes` contains AST fragments in source order. Pass each node to `walk()`. A valid expression returns one root node with the same structure and ranges as the result of `parse()`. When a required child is missing, recognized nodes can be returned individually. For example, `a +` returns the identifier `a` and the operator `+`.
+- If an operand is missing at a separator, closing delimiter, or the end of the input within a call or array, `parseLoose()` keeps the enclosing node and the expressions it could complete. For example, `f(a + , b)` keeps the call with arguments `a` and `b` and reports an error at the comma.
 - `errors` contains `ParserError` instances ordered by their starting offsets. Use `code` and `message` for diagnostics and `start` and `end` to locate them. Nodes and errors use zero-based UTF-16 offsets with an inclusive start and exclusive end, so you can use `input.slice(start, end)`. For an unexpected end of input, both error offsets equal `input.length`.
 - Empty or whitespace-only input returns two empty arrays. If the parser finds no recognizable nodes, as in `?`, `nodes` is empty and `errors` still reports the error.
 

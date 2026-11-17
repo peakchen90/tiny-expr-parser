@@ -22,7 +22,12 @@ import type {
 } from './types';
 import { enMessages, zhCNMessages } from './messages';
 import { ParserError } from './parser-error';
-import { tokenTypes as tt } from './token-type';
+import {
+  tokenTypes as tt,
+  groupOperandBoundaries,
+  callOperandBoundaries,
+  arrayOperandBoundaries,
+} from './token';
 import {
   isNumericStart,
   isNumericChar,
@@ -58,6 +63,10 @@ export class Parser {
   private lastTokenEnd = 0; // 上一个 Token 的结束位置
   private allowPrefix = true;
 
+  /**
+   * 创建表达式解析器
+   * @param options 语法开关、标识符前缀、错误消息和自定义运算符配置
+   */
   constructor(options?: ParserOptions) {
     const features = options?.features;
     const messages = options?.messages;
@@ -114,6 +123,8 @@ export class Parser {
 
   /**
    * 注册二元运算符
+   * @param value 运算符文本
+   * @param precedence 运算符优先级，数值越大越先结合
    */
   addBinaryOperator(value: string, precedence: number): void {
     this.addOperator(value, precedence, false);
@@ -121,13 +132,16 @@ export class Parser {
 
   /**
    * 注册前缀一元运算符
+   * @param value 运算符文本
+   * @param precedence 决定操作数范围的优先级
    */
   addUnaryOperator(value: string, precedence: number): void {
     this.addOperator(value, precedence, true);
   }
 
   /**
-   * 开始解析，如果是空字符串返回 `null`
+   * 严格解析表达式，空字符串或纯空白返回 `null`
+   * @param input 表达式源码
    */
   parse(input: string): RootNode | null {
     this.startParse(input);
@@ -136,9 +150,8 @@ export class Parser {
       return null; // 空字符
     }
 
-    const expression = this.parseExprAtom(this.tokenStart, -1);
-    if (this.tokenType !== tt.end) {
-      // 其后遇到其他非法字符
+    const expression = this.parseExpression(-1);
+    if (!expression || this.tokenType !== tt.end) {
       this.unexpected();
     }
 
@@ -148,6 +161,7 @@ export class Parser {
   /**
    * 开始宽松解析，如果是空字符串或纯空白，返回空的节点和错误列表
    * 遇到语法错误时记录错误并尽可能继续解析，返回已识别的节点和错误列表
+   * @param input 表达式源码
    */
   parseLoose(input: string): LooseParseResult {
     const result: LooseParseResult = { nodes: [], errors: [] };
@@ -155,7 +169,8 @@ export class Parser {
     while (this.tokenType !== tt.end) {
       const start = this.tokenStart;
       try {
-        const expression = this.parseExprAtom(start, -1, result);
+        const expression = this.parseExpression(-1, result);
+        if (!expression) this.unexpected();
         this.finishNode(
           this.startNode<RootNode>(start),
           { type: 'Expression', expression },
@@ -189,6 +204,8 @@ export class Parser {
   /**
    * 将 AST 节点转换为表达式文本，默认保留字面量的原始写法
    * 自定义回调返回 undefined 时使用内置逻辑，其 stringify 参数会继续应用同一回调
+   * @param node 要转换的 AST 节点
+   * @param customStringify 可选的节点格式化回调
    */
   stringify(node: Node, customStringify?: StringifyCallback): string {
     const stringify = (child: Node) => this.stringify(child, customStringify);
@@ -358,7 +375,11 @@ export class Parser {
     }
   }
 
-  /** 重置解析状态并读取首个 token */
+  /**
+   * 重置解析状态并读取首个 token
+   * @param input 表达式源码
+   * @param errors 宽松模式下收集词法错误的列表
+   */
   private startParse(input: string, errors?: ParserError[]): void {
     this.input = input;
     this.tokenType = tt.start;
@@ -373,7 +394,10 @@ export class Parser {
     this.next(errors);
   }
 
-  /** 获取当前实例的二元运算符优先级，注册定义优先 */
+  /**
+   * 获取当前实例的二元运算符优先级，注册定义优先
+   * @param value 运算符文本
+   */
   private getBinaryPrecedence(value: string): number | undefined {
     const operator = this.operators.find(
       (token) => token.isBinary && token.label === value,
@@ -393,65 +417,47 @@ export class Parser {
   }
 
   /**
-   * 解析一个表达式原子（最小单元的表达式）, 如: `1 + 2`、`(1 + 2 + 3)`、`-1` 都作为一个表达式原子解析
-   * @param leftStartPos 左侧开始位置
-   * @param minPrecedence 当前上下文的优先级
+   * 先解析操作数，再按优先级续接二元运算，缺失操作数且可恢复时返回 `undefined`
+   * @param minPrecedence 二元运算符的优先级必须大于此值，`-1` 表示接受所有优先级
+   * @param looseResult 宽松模式下收集节点片段和错误的结果
+   * @param operandBoundaries 当前语法结构中允许恢复缺失操作数的 token 类型
    */
-  private parseExprAtom(
-    leftStartPos: number,
+  private parseExpression(
     minPrecedence: number,
     looseResult?: LooseParseResult,
-  ): ExpressionNode {
+    operandBoundaries?: readonly TokenType[],
+  ): ExpressionNode | undefined {
+    const start = this.tokenStart;
+    let left: ExpressionNode | undefined;
     if (this.tokenType === tt.parenL) {
-      // 遇到 `(` 则递归解析表达式原子
       this.next(looseResult?.errors);
-      const left = this.parseExprAtom(this.tokenStart, -1, looseResult);
+      left = this.parseExpression(
+        -1,
+        looseResult,
+        operandBoundaries ? groupOperandBoundaries : undefined,
+      );
       this.expect(tt.parenR, looseResult?.errors);
-      // 将 `(expr)` 整体作为左值，进入优先级解析流程
-      return this.parseMaybeBinary(
-        left,
-        leftStartPos,
-        minPrecedence,
-        looseResult,
-      );
     } else {
-      const left = this.parseMaybeUnary(looseResult);
-      return this.parseMaybeBinary(
-        left,
-        leftStartPos,
-        minPrecedence,
-        looseResult,
-      );
+      left = this.parseMaybeUnary(looseResult, operandBoundaries);
     }
-  }
+    if (!left) return;
 
-  /**
-   * 解析可能的二元表达式
-   * @param left 左值
-   * @param leftStartPos 左值节点起始位置
-   * @param minPrecedence 当前上下文的优先级
-   */
-  private parseMaybeBinary(
-    left: ExpressionNode,
-    leftStartPos: number,
-    minPrecedence: number,
-    looseResult?: LooseParseResult,
-  ): ExpressionNode {
     // 逐个续接左结合的二元运算符，避免同级运算链增加递归深度
     while (
       this.tokenType.isBinary &&
       this.tokenType.precedence > minPrecedence
     ) {
       const precedence = this.tokenType.precedence;
-      const node = this.startNode<BinaryExpression>(leftStartPos);
+      const node = this.startNode<BinaryExpression>(start);
       const operator = this.parseOperator(looseResult);
 
       // 解析可能更高优先级的右侧表达式，如: `1 + 2 * 3` 将解析 `2 * 3` 作为右值
-      const right = this.parseExprAtom(
-        this.tokenStart,
+      const right = this.parseExpression(
         precedence,
         looseResult,
+        operandBoundaries,
       );
+      if (!right) break;
       left = this.finishNode(
         node,
         { type: 'BinaryExpression', left, right, operator },
@@ -463,8 +469,13 @@ export class Parser {
 
   /**
    * 解析字面量、数组、标识符、函数调用或已注册的前缀运算符
+   * @param looseResult 宽松模式下收集节点片段和错误的结果
+   * @param operandBoundaries 当前语法结构中允许恢复缺失操作数的 token 类型
    */
-  private parseMaybeUnary(looseResult?: LooseParseResult): ExpressionNode {
+  private parseMaybeUnary(
+    looseResult?: LooseParseResult,
+    operandBoundaries?: readonly TokenType[],
+  ): ExpressionNode | undefined {
     const precedence = this.tokenType.precedence;
     const node = this.startNode<ExpressionNode>();
     const start = this.tokenStart;
@@ -475,11 +486,12 @@ export class Parser {
     if (this.tokenType.isPrefix) {
       const operator = this.parseOperator(looseResult);
       // 前缀运算符自身的优先级决定其操作数的范围
-      const argument = this.parseExprAtom(
-        this.tokenStart,
+      const argument = this.parseExpression(
         precedence,
         looseResult,
+        operandBoundaries,
       );
+      if (!argument) return;
       return this.finishNode(
         node as InitialPartNode<UnaryExpression>,
         { type: 'UnaryExpression', argument, operator, prefix: true },
@@ -538,35 +550,45 @@ export class Parser {
       );
     }
 
+    // 操作数缺失时把分隔符留给外层，词法错误已经定位的空位无需重复报错
+    if (errors && operandBoundaries?.includes(this.tokenType)) {
+      if (
+        this.tokenType === tt.end ||
+        errors.length === 0 ||
+        errors[errors.length - 1].start < this.lastTokenEnd
+      ) {
+        errors.push(this.unexpectedError());
+      }
+      return;
+    }
+
     return this.unexpected();
   }
 
-  /** 读取逗号分隔的数组元素或函数参数，每项按完整表达式解析 */
+  /**
+   * 读取逗号分隔的数组元素或函数参数，每项按完整表达式解析
+   * @param closingToken 结束列表的右方括号或右圆括号
+   * @param looseResult 宽松模式下收集节点片段和错误的结果
+   */
   private parseExpressionList(
     closingToken: TokenType,
     looseResult?: LooseParseResult,
   ): ExpressionNode[] {
     const errors = looseResult?.errors;
+    const operandBoundaries = looseResult
+      ? closingToken === tt.parenR
+        ? callOperandBoundaries
+        : arrayOperandBoundaries
+      : undefined;
     const elements: ExpressionNode[] = [];
     if (!this.eat(closingToken, errors)) {
       do {
-        if (
-          errors &&
-          (this.tokenType === tt.comma ||
-            this.tokenType === closingToken ||
-            this.tokenType === tt.end)
-        ) {
-          // 保留分隔符和后续表达式，已有词法错误的空位不重复报错
-          if (
-            this.tokenType !== tt.end &&
-            (errors.length === 0 ||
-              errors[errors.length - 1].start < this.lastTokenEnd)
-          ) {
-            errors.push(this.unexpectedError());
-          }
-        } else {
-          elements.push(this.parseExprAtom(this.tokenStart, -1, looseResult));
-        }
+        const element = this.parseExpression(
+          -1,
+          looseResult,
+          operandBoundaries,
+        );
+        if (element) elements.push(element);
       } while (this.eat(tt.comma, errors));
       this.expect(closingToken, errors);
     }
@@ -575,6 +597,7 @@ export class Parser {
 
   /**
    * 读取运算符节点，范围只覆盖当前运算符 token
+   * @param looseResult 宽松模式下收集节点片段和错误的结果
    */
   private parseOperator(looseResult?: LooseParseResult): Operator {
     const node = this.startNode<Operator>();
@@ -589,6 +612,7 @@ export class Parser {
 
   /**
    * 读取并移到下一个 Token
+   * @param errors 宽松模式下收集词法错误的列表
    */
   private next(errors?: ParserError[]): void {
     this.lastTokenStart = this.tokenStart;
@@ -618,6 +642,7 @@ export class Parser {
 
   /**
    * 读取一个 token
+   * @param errors 宽松模式下收集词法错误的列表
    */
   private readToken(errors?: ParserError[]): void {
     const code = this.codeAt(this.pos);
@@ -635,6 +660,7 @@ export class Parser {
 
   /**
    * 读取一个数字
+   * @param errors 宽松模式下收集数字词法错误的列表
    */
   private readNumeric(errors?: ParserError[]): void {
     if (!this.options.features.number) {
@@ -725,6 +751,8 @@ export class Parser {
 
   /**
    * 读取单引号或双引号字符串并解码转义
+   * @param quote 起始引号的 UTF-16 码元值
+   * @param errors 宽松模式下收集字符串词法错误的列表
    */
   private readString(quote: number, errors?: ParserError[]): void {
     this.pos++;
@@ -784,7 +812,8 @@ export class Parser {
   }
 
   /**
-   * 根据字符 code 读取一个 Token，包括自定义注册的运算符
+   * 按当前位置的 Unicode 码点读取 token，优先匹配自定义运算符
+   * @param errors 宽松模式下收集词法错误的列表
    */
   private readTokenFromCode(errors?: ParserError[]): void {
     const code = this.input.codePointAt(this.pos) ?? -1;
@@ -865,6 +894,7 @@ export class Parser {
 
   /**
    * 按 ECMAScript IdentifierName 读取标识符并解码 Unicode 转义
+   * @param errors 宽松模式下收集无效 Unicode 转义错误的列表
    */
   private readIdentifier(errors?: ParserError[]): void {
     const identifierStart = this.pos;
@@ -919,9 +949,9 @@ export class Parser {
   }
 
   /**
-   * 完善一个 Token
-   * @param type
-   * @param value
+   * 完成当前 token 并更新词法上下文
+   * @param type 当前 token 的类型
+   * @param value 保存到当前 token 的文本，默认为空字符串
    */
   private finishToken(type: TokenType, value = ''): void {
     const prevType = this.tokenType;
@@ -940,6 +970,10 @@ export class Parser {
     }
   }
 
+  /**
+   * 读取指定位置的 UTF-16 码元值
+   * @param index 源码中的 UTF-16 偏移
+   */
   private codeAt(index: number): number {
     return this.input.charCodeAt(index);
   }
@@ -950,6 +984,7 @@ export class Parser {
 
   /**
    * 在当前位置创建一个新节点
+   * @param pos 节点的起始偏移，默认为当前 token 的起点
    */
   private startNode<T extends Node = Node>(pos?: number): InitialPartNode<T> {
     pos = pos ?? this.tokenStart;
@@ -957,7 +992,10 @@ export class Parser {
   }
 
   /**
-   * 完善一个节点
+   * 补全节点字段，以前一个 token 的结束位置作为节点终点
+   * @param node 包含初始源码范围的节点
+   * @param info 要合并到节点的类型及其他字段
+   * @param nodes 宽松模式下收集节点片段的列表，父节点会替换已收集的子节点
    */
   private finishNode<T extends Node = Node>(
     node: InitialPartNode<T>,
@@ -989,8 +1027,9 @@ export class Parser {
   }
 
   /**
-   * 消费指定类型的 token，宽松模式下允许在输入末尾补全右圆括号或右方括号
-   * @param type
+   * 消费指定类型的 token，宽松模式下允许在输入末尾缺少闭合符
+   * @param type 期望消费的 token 类型
+   * @param errors 宽松模式下收集词法错误和输入结束错误的列表
    */
   private expect(type: TokenType, errors?: ParserError[]): void {
     if (!this.eat(type, errors)) {
@@ -1006,8 +1045,9 @@ export class Parser {
   }
 
   /**
-   * 消费一个 token，如果是指定的 token 类型，则移动到下一个 token ，返回 true，否则返回 false
-   * @param type
+   * 当前 token 匹配指定类型时将其消费并返回 `true`，否则返回 `false`
+   * @param type 要匹配的 token 类型
+   * @param errors 宽松模式下读取下一个 token 时收集词法错误的列表
    */
   private eat(type: TokenType, errors?: ParserError[]): boolean {
     if (this.tokenType === type) {
@@ -1019,14 +1059,18 @@ export class Parser {
 
   /**
    * 抛出 Unexpected token 异常
-   * @param token
-   * @param start
+   * @param token 用于错误提示的文本，默认取当前 token 的文本
+   * @param start 错误起始偏移，默认为当前 token 的起点
    */
   private unexpected(token?: string, start = this.tokenStart): never {
     throw this.unexpectedError(token, start);
   }
 
-  /** 根据当前 token 生成对应的意外 token 错误 */
+  /**
+   * 生成意外 token 错误
+   * @param token 用于错误提示的文本，省略时从当前 token 读取文本及结束位置
+   * @param start 错误起始偏移，默认为当前 token 的起点
+   */
   private unexpectedError(
     token?: string,
     start = this.tokenStart,
@@ -1045,10 +1089,10 @@ export class Parser {
 
   /**
    * 用当前语言的提示模板生成语法错误
-   * @param start
-   * @param code
-   * @param end
-   * @param value
+   * @param start 错误范围的起始 UTF-16 偏移
+   * @param code 错误码，对应错误消息模板
+   * @param end 错误范围的结束 UTF-16 偏移，含首不含尾，省略时覆盖一个 Unicode 码点
+   * @param value 替换消息模板中 `{v}` 的文本
    */
   private createError(
     start: number,
@@ -1075,6 +1119,12 @@ export class Parser {
     return new ParserError(message, code, start, end);
   }
 
+  /**
+   * 校验并注册自定义运算符
+   * @param value 运算符文本
+   * @param precedence 运算符优先级
+   * @param isUnary 是否为前缀一元运算符
+   */
   private addOperator(
     value: string,
     precedence: number,

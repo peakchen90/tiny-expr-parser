@@ -80,14 +80,20 @@ describe('Parser Loose', () => {
     ['f(,a)', ['a'], 2],
     ['f(a,,b)', ['a', 'b'], 4],
     ['f(a,)', ['a'], 4],
+    ['f(a + , b)', ['a', 'b'], 6],
+    ['f(a +)', ['a'], 5],
+    ['f((a +), b)', ['a', 'b'], 6],
   ])('preserves recognized arguments in %s', (input, names, position) => {
-    const { nodes, errors } = new Parser().parseLoose(input);
+    const parser = new Parser();
+    const { nodes, errors } = parser.parseLoose(input);
 
     expect(nodes).toMatchObject([
       {
         type: 'Expression',
         expression: {
           type: 'CallExpression',
+          start: 0,
+          end: input.length,
           arguments: names.map((name) => ({ type: 'Identifier', name })),
         },
       },
@@ -95,16 +101,24 @@ describe('Parser Loose', () => {
     expect(errors).toMatchObject([
       { code: 'unexpectedToken', start: position, end: position + 1 },
     ]);
+    expect(() => parser.parse(input)).toThrow(ParserError);
   });
 
   test.each([
     ['f(', []],
     ['f(a,', ['a']],
     ['f((a', ['a']],
+    ['f(a +', ['a']],
+    ['f((a +', ['a']],
+    ['f(neg', []],
+    ['f(a + neg', ['a']],
   ])(
     'preserves an incomplete call in %s and reports the end once',
     (input, names) => {
-      const { nodes, errors } = new Parser().parseLoose(input);
+      const parser = new Parser({
+        unaryOperators: { neg: { precedence: 16 } },
+      });
+      const { nodes, errors } = parser.parseLoose(input);
 
       expect(nodes).toMatchObject([
         {
@@ -131,6 +145,7 @@ describe('Parser Loose', () => {
   test.each([
     ['[1, ?, id]', 4],
     ['[1,, id]', 3],
+    ['[1 +, id]', 4],
   ])('recovers array elements in %s', (input, start) => {
     const { nodes, errors } = new Parser().parseLoose(input);
 
@@ -147,6 +162,143 @@ describe('Parser Loose', () => {
     ]);
     expect(errors).toMatchObject([
       { code: 'unexpectedToken', start, end: start + 1 },
+    ]);
+  });
+
+  test('keeps nested containers and skips a prefix operator without an operand', () => {
+    const parser = new Parser({ unaryOperators: { neg: { precedence: 16 } } });
+    const input = 'f([a +], (neg), b)';
+    const { nodes, errors } = parser.parseLoose(input);
+
+    expect(nodes).toMatchObject([
+      {
+        expression: {
+          type: 'CallExpression',
+          start: 0,
+          end: input.length,
+          arguments: [
+            {
+              type: 'ArrayExpression',
+              start: 2,
+              end: 7,
+              elements: [{ type: 'Identifier', name: 'a', start: 3, end: 4 }],
+            },
+            { type: 'Identifier', name: 'b' },
+          ],
+        },
+      },
+    ]);
+    expect(errors).toMatchObject([
+      { code: 'unexpectedToken', start: 6, end: 7 },
+      { code: 'unexpectedToken', start: 13, end: 14 },
+    ]);
+  });
+
+  test.each([
+    ['[a +]', '[a]', [4]],
+    ['[a +,, b *, c]', '[a, b, c]', [4, 5, 10]],
+    ['f(a - b -, -2)', 'f(a - b, -2)', [9]],
+    ['f((a +) * b, c)', 'f(a * b, c)', [6]],
+    ['[f(a +), b] * c', '[f(a), b] * c', [6]],
+    ['f(a ** , neg b)', 'f(a, neg b)', [7]],
+    ['[neg, neg] + 1', '[] + 1', [4, 9]],
+    ['f(a + (neg), b)', 'f(a, b)', [10]],
+    ['f(neg neg, b)', 'f(b)', [9]],
+    ['f(neg (a +), b)', 'f(neg a, b)', [10]],
+    ['f((), b)', 'f(b)', [3]],
+  ])(
+    'recovers operands at list and group boundaries in %s',
+    (input, text, starts) => {
+      const parser = new Parser({
+        binaryOperators: { '**': { precedence: 17 } },
+        unaryOperators: { neg: { precedence: 16 } },
+      });
+      const { nodes, errors } = parser.parseLoose(input);
+
+      expect(nodes).toMatchObject([
+        { type: 'Expression', start: 0, end: input.length },
+      ]);
+      expect(nodes.map((node) => parser.stringify(node))).toEqual([text]);
+      expect(errors).toMatchObject(
+        starts.map((start) => ({
+          code: 'unexpectedToken',
+          start,
+          end: start + 1,
+        })),
+      );
+      expect(() => parser.parse(input)).toThrow(
+        expect.objectContaining({ code: 'unexpectedToken', start: starts[0] }),
+      );
+    },
+  );
+
+  test('walks the complete part of a mixed-precedence argument once', () => {
+    const parser = new Parser();
+    const { nodes, errors } = parser.parseLoose('f(a + b *, c)');
+    const visited: [string, number, number][] = [];
+
+    expect(nodes.map((node) => parser.stringify(node))).toEqual([
+      'f(a + b, c)',
+    ]);
+    parser.walk(nodes[0], {
+      Identifier({ name, start, end }) {
+        visited.push([name, start, end]);
+      },
+      Operator({ value, start, end }) {
+        visited.push([value, start, end]);
+      },
+    });
+    expect(visited).toEqual([
+      ['f', 0, 1],
+      ['a', 2, 3],
+      ['+', 4, 5],
+      ['b', 6, 7],
+      ['c', 11, 12],
+    ]);
+    expect(errors).toMatchObject([
+      { code: 'unexpectedToken', start: 9, end: 10 },
+    ]);
+  });
+
+  test('reports invalid characters in missing operands without duplicating delimiter errors', () => {
+    const parser = new Parser();
+    const { nodes, errors } = parser.parseLoose('f(a + ?🙂, b * ?, c /)');
+
+    expect(nodes.map((node) => parser.stringify(node))).toEqual(['f(a, b, c)']);
+    expect(errors).toMatchObject([
+      { code: 'unexpectedToken', start: 6, end: 7 },
+      { code: 'unexpectedToken', start: 7, end: 9 },
+      { code: 'unexpectedToken', start: 15, end: 16 },
+      { code: 'unexpectedToken', start: 21, end: 22 },
+    ]);
+  });
+
+  test.each([
+    ['f(a + ] b', ['f', 'a', '+', 'b'], 6],
+    ['[a + ) b', ['a', '+', 'b'], 5],
+  ])(
+    'reports the mismatched closer in %s and continues parsing',
+    (input, text, start) => {
+      const parser = new Parser();
+      const { nodes, errors } = parser.parseLoose(input);
+
+      expect(nodes.map((node) => parser.stringify(node))).toEqual(text);
+      expect(errors).toMatchObject([
+        { code: 'unexpectedToken', start, end: start + 1 },
+      ]);
+    },
+  );
+
+  test('reports one end error across unfinished nested lists after invalid input and whitespace', () => {
+    const parser = new Parser();
+    const input = '[f([a + 🙂 \t\u3000';
+    const { nodes, errors } = parser.parseLoose(input);
+
+    expect(nodes).toMatchObject([{ type: 'Expression', start: 0, end: 7 }]);
+    expect(nodes.map((node) => parser.stringify(node))).toEqual(['[f([a])]']);
+    expect(errors).toMatchObject([
+      { code: 'unexpectedToken', start: 8, end: 10 },
+      { code: 'unexpectedEndOfInput', start: input.length, end: input.length },
     ]);
   });
 

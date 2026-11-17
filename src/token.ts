@@ -23,6 +23,19 @@ export const tokenTypes = {
   div: _tokenType('/', { isBinary: true, precedence: 14 }),
 } as const;
 
+// 宽松解析中允许恢复缺失操作数的边界 token
+export const groupOperandBoundaries = [tokenTypes.parenR, tokenTypes.end];
+export const callOperandBoundaries = [
+  tokenTypes.comma,
+  tokenTypes.parenR,
+  tokenTypes.end,
+];
+export const arrayOperandBoundaries = [
+  tokenTypes.comma,
+  tokenTypes.bracketR,
+  tokenTypes.end,
+];
+
 function _tokenType(
   label: string,
   options?: {
