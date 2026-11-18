@@ -50,7 +50,10 @@ describe('Parser Loose', () => {
       parser.walk(node, {
         CallExpression(call) {
           expectTypeOf(call).toEqualTypeOf<CallExpression>();
-          expect(call.callee.name).toBe('sum');
+          expect(call.callee).toMatchObject({
+            type: 'Identifier',
+            name: 'sum',
+          });
           expect(call.arguments).toHaveLength(2);
         },
         Identifier(identifier, ancestors) {
@@ -544,4 +547,19 @@ describe('Parser Loose', () => {
       { code: 'unexpectedToken', start: 1, end: 2 },
     ]);
   });
+
+  test.each([
+    ['a.b.', 'a.b', 'unexpectedEndOfInput', 4, 4],
+    ['f(a., b.c)', 'f(a, b.c)', 'unexpectedToken', 4, 5],
+    ['[a., b.c]', '[a, b.c]', 'unexpectedToken', 3, 4],
+  ])(
+    'preserves complete expressions around an incomplete member in %s',
+    (input, expected, code, start, end) => {
+      const parser = new Parser();
+      const { nodes, errors } = parser.parseLoose(input);
+
+      expect(nodes.map((node) => parser.stringify(node))).toEqual([expected]);
+      expect(errors).toMatchObject([{ code, start, end }]);
+    },
+  );
 });

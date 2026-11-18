@@ -7,6 +7,7 @@ import type {
   Operator,
   UnaryExpression,
   CallExpression,
+  MemberExpression,
   ArrayExpression,
   InitialPartNode,
   FinishPartNode,
@@ -80,6 +81,7 @@ export class Parser {
         string: features?.string !== false,
         array: features?.array !== false,
         call: features?.call !== false,
+        member: features?.member !== false,
         plusOperator: features?.plusOperator !== false,
         minusOperator: features?.minusOperator !== false,
         timesOperator: features?.timesOperator !== false,
@@ -192,7 +194,8 @@ export class Parser {
         this.tokenStart === start ||
         this.tokenType === tt.parenR ||
         this.tokenType === tt.bracketR ||
-        this.tokenType === tt.comma
+        this.tokenType === tt.comma ||
+        this.tokenType === tt.dot
       ) {
         this.next(result.errors);
       }
@@ -223,10 +226,49 @@ export class Parser {
         return node.name;
       case 'Operator':
         return node.value;
-      case 'CallExpression': {
-        const callee = stringify(node.callee);
-        const args = node.arguments.map(stringify).join(', ');
-        return `${callee}(${args})`;
+      case 'CallExpression':
+      case 'MemberExpression': {
+        let current = node;
+        let parents: (CallExpression | MemberExpression)[] | undefined;
+        let text: string;
+
+        // 沿调用和成员访问的左侧链迭代，保留回调顺序且避免耗尽调用栈
+        while (true) {
+          const base: ExpressionNode =
+            current.type === 'CallExpression' ? current.callee : current.object;
+          if (
+            base.type !== 'CallExpression' &&
+            base.type !== 'MemberExpression'
+          ) {
+            text = stringify(base);
+            if (
+              base.type === 'NumericLiteral' ||
+              base.type === 'BinaryExpression' ||
+              base.type === 'UnaryExpression'
+            ) {
+              text = `(${text})`;
+            }
+            break;
+          }
+
+          const customText = customStringify?.(base, stringify);
+          if (customText !== undefined) {
+            text = customText;
+            break;
+          }
+          (parents ??= []).push(current);
+          current = base;
+        }
+
+        while (true) {
+          text +=
+            current.type === 'CallExpression'
+              ? `(${current.arguments.map(stringify).join(', ')})`
+              : `.${stringify(current.property)}`;
+          const parent = parents?.pop();
+          if (!parent) return text;
+          current = parent;
+        }
       }
       case 'ArrayExpression':
         return `[${node.elements.map(stringify).join(', ')}]`;
@@ -358,6 +400,10 @@ export class Parser {
           }
           stack.push({ node: current.callee, exiting: false });
           break;
+        case 'MemberExpression':
+          stack.push({ node: current.property, exiting: false });
+          stack.push({ node: current.object, exiting: false });
+          break;
         case 'ArrayExpression':
           for (let i = current.elements.length - 1; i >= 0; i--) {
             stack.push({ node: current.elements[i], exiting: false });
@@ -429,19 +475,75 @@ export class Parser {
     operandBoundaries?: readonly TokenType[],
   ): ExpressionNode | undefined {
     const start = this.tokenStart;
+    const errors = looseResult?.errors;
+    const nodes = looseResult?.nodes;
+    let canCall = this.tokenType === tt.identifier;
     let left: ExpressionNode | undefined;
     if (this.tokenType === tt.parenL) {
-      this.next(looseResult?.errors);
+      this.next(errors);
       left = this.parseExpression(
         -1,
         looseResult,
         operandBoundaries ? groupOperandBoundaries : undefined,
       );
-      this.expect(tt.parenR, looseResult?.errors);
+      this.expect(tt.parenR, errors);
     } else {
       left = this.parseMaybeUnary(looseResult, operandBoundaries);
     }
     if (!left) return;
+
+    // 成员访问和调用在二元运算之前结合，调用目标为未分组的标识符或点号成员
+    while (true) {
+      if (this.tokenType === tt.dot) {
+        this.next(errors);
+        if (this.tokenType !== tt.identifier) {
+          if (
+            errors &&
+            (this.tokenType === tt.end ||
+              operandBoundaries?.includes(this.tokenType))
+          ) {
+            if (
+              this.tokenType === tt.end ||
+              errors.length === 0 ||
+              errors[errors.length - 1].start < this.lastTokenEnd
+            ) {
+              errors.push(this.unexpectedError());
+            }
+            break;
+          }
+          this.unexpected();
+        }
+
+        const propertyNode = this.startNode<Identifier>();
+        const name = this.tokenText;
+        this.next(errors);
+        const property = this.finishNode<Identifier>(propertyNode, {
+          type: 'Identifier',
+          name,
+        });
+        left = this.finishNode<MemberExpression>(
+          this.startNode(start),
+          { type: 'MemberExpression', object: left, property },
+          nodes,
+        );
+        canCall = true;
+      } else if (
+        this.tokenType === tt.parenL &&
+        canCall &&
+        this.options.features.call &&
+        (left.type === 'Identifier' || left.type === 'MemberExpression')
+      ) {
+        this.next(errors);
+        const args = this.parseExpressionList(tt.parenR, looseResult);
+        left = this.finishNode<CallExpression>(
+          this.startNode(start),
+          { type: 'CallExpression', callee: left, arguments: args },
+          nodes,
+        );
+      } else {
+        break;
+      }
+    }
 
     // 逐个续接左结合的二元运算符，避免同级运算链增加递归深度
     while (
@@ -462,14 +564,14 @@ export class Parser {
       left = this.finishNode(
         node,
         { type: 'BinaryExpression', left, right, operator },
-        looseResult?.nodes,
+        nodes,
       );
     }
     return left;
   }
 
   /**
-   * 解析字面量、数组、标识符、函数调用或已注册的前缀运算符
+   * 解析字面量、数组、标识符或已注册的前缀运算符
    * @param looseResult 宽松模式下收集节点片段和错误的结果
    * @param operandBoundaries 当前语法结构中允许恢复缺失操作数的 token 类型
    */
@@ -534,19 +636,9 @@ export class Parser {
 
     if (this.tokenType === tt.identifier) {
       this.next(errors);
-      const identifier = this.finishNode(
+      return this.finishNode(
         node as InitialPartNode<Identifier>,
         { type: 'Identifier', name: value },
-        nodes,
-      );
-      if (!this.options.features.call || !this.eat(tt.parenL, errors)) {
-        return identifier;
-      }
-
-      const args = this.parseExpressionList(tt.parenR, looseResult);
-      return this.finishNode(
-        this.startNode<CallExpression>(start),
-        { type: 'CallExpression', callee: identifier, arguments: args },
         nodes,
       );
     }
@@ -647,6 +739,14 @@ export class Parser {
    */
   private readToken(errors?: ParserError[]): void {
     const code = this.codeAt(this.pos);
+    if (
+      code === 46 &&
+      this.options.features.member &&
+      !isNumericChar(this.codeAt(this.pos + 1))
+    ) {
+      this.pos++;
+      return this.finishToken(tt.dot, '.');
+    }
     if (isNumericStart(code)) {
       return this.readNumeric(errors);
     }
@@ -709,6 +809,13 @@ export class Parser {
       } else if (code === 46) {
         // `.`
         if (!allowDot) {
+          // 已完整读取的数字后，只有紧跟数字的点号仍按数字语法报错
+          if (
+            this.options.features.member &&
+            !isNumericChar(this.codeAt(this.pos + 1))
+          ) {
+            break;
+          }
           unexpectedPos = this.pos;
           break;
         }
@@ -818,6 +925,11 @@ export class Parser {
    */
   private readTokenFromCode(errors?: ParserError[]): void {
     const code = this.input.codePointAt(this.pos) ?? -1;
+
+    // 点号后的标识符名称不匹配同名的自定义运算符
+    if (this.tokenType === tt.dot && (code === 92 || isIdentifierStart(code))) {
+      return this.readIdentifier(errors);
+    }
 
     // 优先解析自定义运算符
     for (const operator of this.operators) {

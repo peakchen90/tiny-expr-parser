@@ -113,6 +113,7 @@ All features are enabled by default; set one to `false` to reject that syntax.
 | `string`        | String literals.                                                                             |
 | `array`         | Array expressions.                                                                           |
 | `call`          | Function calls. Grouping parentheses remain available when disabled.                         |
+| `member`        | Dot member access.                                                                           |
 | `plusOperator`  | Built-in binary operator `+`.                                                                |
 | `minusOperator` | Built-in binary operator `-`. Negative literals such as `-2` remain available when disabled. |
 | `timesOperator` | Built-in binary operator `*`.                                                                |
@@ -265,6 +266,7 @@ type ExpressionNode =
   | BinaryExpression
   | UnaryExpression
   | CallExpression
+  | MemberExpression
   | ArrayExpression
   | NumericLiteral
   | StringLiteral
@@ -315,8 +317,16 @@ interface CallExpression {
   type: 'CallExpression';
   start: number;
   end: number;
-  callee: Identifier;
+  callee: Identifier | MemberExpression;
   arguments: ExpressionNode[];
+}
+
+interface MemberExpression {
+  type: 'MemberExpression';
+  start: number;
+  end: number;
+  object: ExpressionNode;
+  property: Identifier;
 }
 
 interface ArrayExpression {
@@ -366,7 +376,13 @@ Register `+` or `-` as a prefix operator with `addUnaryOperator` or the `unaryOp
 
 Strings use single or double quotes and support `\\`, `\'`, `\"`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`, and `\v` escapes.
 
-Calls use an identifier as the function name, as in `fn()` and `fn('text', other(1 + 2))`. Separate arguments with commas and omit the trailing comma. Calls bind before unary and binary operators.
+Calls use an identifier or dot member as the callee, as in `fn()`, `fn('text', other(1 + 2))`, and `a.b.c()`. Separate arguments with commas and omit the trailing comma. Calls bind before unary and binary operators.
+
+### Member access
+
+Use a dot followed by an identifier to access a member. Accesses and calls can be chained from left to right, as in `foo.bar`, `a.b.c()`, and `get().result.name`. Member access binds before unary and binary operators. Use parentheses around an expression when needed, as in `(a + b).value` or `(1).value`.
+
+Each `MemberExpression` stores the receiver in `object` and the identifier in `property`. `walk()` visits `object` before `property`, and `stringify()` joins them with a dot. For incomplete input such as `foo.bar.`, `parseLoose()` retains `foo.bar` and reports the missing property.
 
 ### Arrays
 

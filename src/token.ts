@@ -8,6 +8,7 @@ export const tokenTypes = {
   bracketL: _tokenType('[', { updateContext: () => ({ allowPrefix: true }) }),
   bracketR: _tokenType(']', { updateContext: () => ({ allowPrefix: false }) }),
   comma: _tokenType(',', { updateContext: () => ({ allowPrefix: true }) }),
+  dot: _tokenType('.'),
   numeric: _tokenType('numeric', {
     updateContext: () => ({ allowPrefix: false }),
   }),

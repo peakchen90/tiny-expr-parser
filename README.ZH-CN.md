@@ -113,6 +113,7 @@ new Parser().parse('1 +');
 | `string`        | 字符串字面量。                                       |
 | `array`         | 数组表达式。                                         |
 | `call`          | 函数调用，关闭后括号仍可用于分组。                   |
+| `member`        | 点号成员访问。                                     |
 | `plusOperator`  | 内置二元运算符 `+`。                                 |
 | `minusOperator` | 内置二元运算符 `-`，关闭后 `-2` 等负数字面量仍可用。 |
 | `timesOperator` | 内置二元运算符 `*`。                                 |
@@ -265,6 +266,7 @@ type ExpressionNode =
   | BinaryExpression
   | UnaryExpression
   | CallExpression
+  | MemberExpression
   | ArrayExpression
   | NumericLiteral
   | StringLiteral
@@ -315,8 +317,16 @@ interface CallExpression {
   type: 'CallExpression';
   start: number;
   end: number;
-  callee: Identifier;
+  callee: Identifier | MemberExpression;
   arguments: ExpressionNode[];
+}
+
+interface MemberExpression {
+  type: 'MemberExpression';
+  start: number;
+  end: number;
+  object: ExpressionNode;
+  property: Identifier;
 }
 
 interface ArrayExpression {
@@ -366,7 +376,13 @@ interface Identifier {
 
 字符串使用单引号或双引号，支持 `\\`、`\'`、`\"`、`\/`、`\b`、`\f`、`\n`、`\r`、`\t` 和 `\v` 转义。
 
-函数名为标识符，例如 `fn()` 和 `fn('text', other(1 + 2))`。参数用逗号分隔，末尾省略逗号。函数调用优先于一元和二元运算。
+调用目标可以是标识符或点号成员，例如 `fn()`、`fn('text', other(1 + 2))` 和 `a.b.c()`。参数用逗号分隔，末尾省略逗号。函数调用优先于一元和二元运算。
+
+### 成员访问
+
+用点号加标识符访问成员。成员访问和调用可以从左到右续接，例如 `foo.bar`、`a.b.c()` 和 `get().result.name`。成员访问优先于一元和二元运算。需要分组时，可以写成 `(a + b).value` 或 `(1).value`。
+
+`MemberExpression` 的 `object` 是被访问的表达式，`property` 是属性名标识符。`walk()` 先访问 `object`，再访问 `property`。`stringify()` 用点号连接两者。遇到 `foo.bar.` 这样的未完成输入时，`parseLoose()` 会保留 `foo.bar` 并报告缺少属性名。
 
 ### 数组
 

@@ -1,5 +1,11 @@
 import { describe, expect, expectTypeOf, test } from 'vitest';
-import { Parser, ParserError, type ArrayExpression, type Node } from '../src';
+import {
+  Parser,
+  ParserError,
+  type ArrayExpression,
+  type MemberExpression,
+  type Node,
+} from '../src';
 import { astFixtures } from './fixtures/ast';
 
 describe('Parser Fixtures', () => {
@@ -84,6 +90,10 @@ describe('Parser Stringify', () => {
     ['(a+b)*c/d', '(a + b) * c / d'],
     ['1--2', '1 - -2'],
     ['[-2, x * (y + 1), f([id])] - 4', '[-2, x * (y + 1), f([id])] - 4'],
+    ['(a+b).x().y', '(a + b).x().y'],
+    ['1.5.x', '(1.5).x'],
+    ['1.e2.x', '(1.e2).x'],
+    ['1..x', '(1.).x'],
     [
       String.raw`f(g(),1_000,'a\n',变量)`,
       String.raw`f(g(), 1_000, 'a\n', 变量)`,
@@ -424,6 +434,7 @@ describe('Parser Features', () => {
         string: true,
         array: true,
         call: false,
+        member: true,
         plusOperator: true,
         minusOperator: true,
         timesOperator: true,
@@ -811,6 +822,97 @@ describe('Call Expression', () => {
   ])('rejects invalid call `%s`', (input, message) => {
     expect(() => new Parser().parse(input)).toThrow(
       expect.objectContaining({ constructor: ParserError, message }),
+    );
+  });
+});
+
+describe('Member Expression', () => {
+  test('binds member access and calls before unary and binary operators', () => {
+    const parser = new Parser({
+      binaryOperators: { and: { precedence: 5 } },
+      unaryOperators: { neg: { precedence: 16 } },
+    });
+
+    expect(parser.parse('neg a.and().b + .5')).toMatchObject({
+      expression: {
+        type: 'BinaryExpression',
+        left: {
+          type: 'UnaryExpression',
+          argument: {
+            type: 'MemberExpression',
+            object: {
+              type: 'CallExpression',
+              callee: { type: 'MemberExpression', property: { name: 'and' } },
+            },
+            property: { name: 'b' },
+          },
+        },
+        right: { type: 'NumericLiteral', rawValue: '.5' },
+      },
+    });
+  });
+
+  test('visits member children in source order with UTF-16 ranges', () => {
+    const parser = new Parser();
+    const ast = parser.parse(String.raw`get().𐐀.\u540D(arg)`)!;
+    const visited: [string, number, number][] = [];
+
+    parser.walk(ast, {
+      MemberExpression(member) {
+        expectTypeOf(member).toEqualTypeOf<MemberExpression>();
+      },
+      Identifier(identifier) {
+        visited.push([identifier.name, identifier.start, identifier.end]);
+      },
+    });
+    expect(visited).toEqual([
+      ['get', 0, 3],
+      ['𐐀', 6, 8],
+      ['名', 9, 15],
+      ['arg', 16, 19],
+    ]);
+    expect(
+      parser.stringify(ast, (node) => {
+        if (node.type === 'Identifier') return node.name.toUpperCase();
+      }),
+    ).toBe('GET().𐐀.名(ARG)');
+  });
+
+  test('parses and stringifies a long chain of member calls', () => {
+    const parser = new Parser();
+    const input = `a${'.b()'.repeat(20_000)}`;
+    const ast = parser.parse(input)!;
+
+    expect(ast.end).toBe(input.length);
+    expect(parser.stringify(ast)).toBe(input);
+  });
+
+  test('keeps the member, number and call features independent', () => {
+    const noMembers = new Parser({ features: { member: false } });
+    expect(() => noMembers.parse('a.b')).toThrow(
+      'Unexpected token b at position 2',
+    );
+    expect(noMembers.parse('f(.5)')).toMatchObject({
+      expression: { type: 'CallExpression', arguments: [{ rawValue: '.5' }] },
+    });
+
+    const noCalls = new Parser({ features: { call: false, number: false } });
+    expect(noCalls.parse('foo.bar')).toEqual(astFixtures['foo.bar']);
+    expect(() => noCalls.parse('a.b()')).toThrow(
+      'Unexpected token ( at position 3',
+    );
+  });
+
+  test.each([
+    ['a.', 'unexpectedEndOfInput', 2, 2],
+    ['a..b', 'unexpectedToken', 2, 3],
+    ['a.5', 'unexpectedToken', 1, 3],
+    ['a. 5', 'unexpectedToken', 3, 4],
+    ['a."b"', 'unexpectedToken', 2, 5],
+    ['a.b()()', 'unexpectedToken', 5, 6],
+  ])('reports a syntax error for %s', (input, code, start, end) => {
+    expect(() => new Parser().parse(input)).toThrow(
+      expect.objectContaining({ constructor: ParserError, code, start, end }),
     );
   });
 });

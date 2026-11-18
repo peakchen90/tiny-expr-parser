@@ -18,6 +18,8 @@ export interface ParserOptions {
     array?: boolean;
     /** 函数调用，关闭后括号仍可用于分组 */
     call?: boolean;
+    /** 点号成员访问 */
+    member?: boolean;
     /** 内置二元运算符 `+` */
     plusOperator?: boolean;
     /** 内置二元运算符 `-`，关闭后 `-2` 等负数字面量仍可用 */
@@ -82,6 +84,7 @@ export type ExpressionNode =
   | BinaryExpression
   | UnaryExpression
   | CallExpression
+  | MemberExpression
   | ArrayExpression
   | NumericLiteral
   | StringLiteral
@@ -114,8 +117,15 @@ export interface Operator extends NodeMeta {
 
 export interface CallExpression extends NodeMeta {
   type: 'CallExpression';
-  callee: Identifier;
+  callee: Identifier | MemberExpression;
   arguments: ExpressionNode[];
+}
+
+/** 点号成员访问，属性名为标识符 */
+export interface MemberExpression extends NodeMeta {
+  type: 'MemberExpression';
+  object: ExpressionNode;
+  property: Identifier;
 }
 
 /** 数组表达式，元素按源码顺序排列 */
